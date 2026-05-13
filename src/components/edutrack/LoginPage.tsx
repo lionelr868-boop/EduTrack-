@@ -79,13 +79,22 @@ export default function LoginPage() {
     setError('');
     setDemoLoading(true);
 
+    // Demo credentials based on selected role
+    const demoCredentials: Record<RoleType, { email: string; password: string }> = {
+      DIRECTOR: { email: 'director1@edutrack.dz', password: 'demo123' },
+      TEACHER: { email: 'teacher1@edutrack.dz', password: 'demo123' },
+      PARENT: { email: 'parent1@edutrack.dz', password: 'demo123' },
+    };
+
+    const creds = demoCredentials[selectedRole];
+
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: 'director@edutrack.dz',
-          password: 'password123',
+          email: creds.email,
+          password: creds.password,
         }),
       });
 
@@ -97,7 +106,12 @@ export default function LoginPage() {
       }
 
       setUser(data);
-      setCurrentView('director-dashboard');
+      const roleViewMap: Record<string, string> = {
+        DIRECTOR: 'director-dashboard',
+        TEACHER: 'teacher-dashboard',
+        PARENT: 'parent-dashboard',
+      };
+      setCurrentView(roleViewMap[data.role] as 'director-dashboard' | 'teacher-dashboard' | 'parent-dashboard');
     } catch {
       setError('تعذر الاتصال بالخادم');
     } finally {
