@@ -24,17 +24,19 @@ model Institution {
   invoices  Invoice[]
   reports   Report[]
   subjects  Subject[]
+  years     Year[]
+  sections  Section[]
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  password     String
-  role         String   @default("DIRECTOR") // DIRECTOR, TEACHER, PARENT
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  password      String
+  role          String   @default("DIRECTOR") // DIRECTOR, TEACHER, PARENT
   institutionId String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   institution   Institution @relation(fields: [institutionId], references: [id])
   notifications Notification[]
@@ -51,24 +53,57 @@ model Subject {
 
   institution Institution @relation(fields: [institutionId], references: [id])
   sessions    Session[]
-  teachers    TeacherSubject[]
   pricing     Pricing[]
+  teachers    Teacher[]
+}
+
+model Year {
+  id            String @id @default(cuid())
+  name          String // e.g. "السنة الأولى متوسط"
+  level         String // ابتدائي, متوسط, ثانوي
+  order         Int    // 1, 2, 3, 4, 5
+  institutionId String
+  createdAt     DateTime @default(now())
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+  sections    Section[]
+}
+
+model Section {
+  id            String @id @default(cuid())
+  name          String // e.g. "قسم أ", "علوم تجريبية"
+  yearId        String
+  institutionId String
+  capacity      Int    @default(30)
+  supervisorId  String? // Teacher who supervises this section
+  createdAt     DateTime @default(now())
+
+  year        Year     @relation(fields: [yearId], references: [id], onDelete: Cascade)
+  institution Institution @relation(fields: [institutionId], references: [id])
+  supervisor  Teacher? @relation(fields: [supervisorId], references: [id])
+  students    Student[]
+  sessions    Session[]
+  activities  StudentActivity[]
 }
 
 model Student {
   id            String   @id @default(cuid())
   name          String
-  level         String
+  level         String   // ابتدائي, متوسط, ثانوي (denormalized for convenience)
   parentId      String?
   institutionId String
+  sectionId     String?  // Link to section
+  enrollmentDate DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   institution Institution @relation(fields: [institutionId], references: [id])
   parent      Parent?     @relation(fields: [parentId], references: [id])
+  section     Section?    @relation(fields: [sectionId], references: [id])
   absences    Absence[]
   invoices    Invoice[]
   attendances Attendance[]
+  activities  StudentActivity[]
 }
 
 model Parent {
@@ -84,23 +119,18 @@ model Teacher {
   id            String @id @default(cuid())
   userId        String @unique
   institutionId String
+  level         String // الطور: ابتدائي, متوسط, ثانوي
+  subjectId     String // ONE subject only - each teacher teaches one subject
+  phone         String?
+  specialization String? // e.g. "رياضيات متقدمة"
 
   user        User             @relation(fields: [userId], references: [id])
   institution Institution      @relation(fields: [institutionId], references: [id])
-  subjects    TeacherSubject[]
+  subject     Subject          @relation(fields: [subjectId], references: [id])
   sessions    Session[]
   absences    Absence[]
-}
-
-model TeacherSubject {
-  id        String @id @default(cuid())
-  teacherId String
-  subjectId String
-
-  teacher Teacher @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
-
-  @@unique([teacherId, subjectId])
+  supervisedSections Section[]
+  activities  StudentActivity[]
 }
 
 model Session {
@@ -108,6 +138,7 @@ model Session {
   subjectId     String
   teacherId     String
   institutionId String
+  sectionId     String?  // Link to section for timetable
   dayOfWeek     Int      // 0=Sunday, 1=Monday... 6=Saturday
   startTime     String   // "08:00"
   endTime       String   // "09:00"
@@ -119,11 +150,13 @@ model Session {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  subject     Subject     @relation(fields: [subjectId], references: [id])
-  teacher     Teacher     @relation(fields: [teacherId], references: [id])
-  institution Institution @relation(fields: [institutionId], references: [id])
+  subject     Subject         @relation(fields: [subjectId], references: [id])
+  teacher     Teacher         @relation(fields: [teacherId], references: [id])
+  institution Institution     @relation(fields: [institutionId], references: [id])
+  section     Section?        @relation(fields: [sectionId], references: [id])
   absences    Absence[]
   attendances Attendance[]
+  activities  StudentActivity[]
 }
 
 model Absence {
@@ -150,9 +183,29 @@ model Attendance {
   createdAt DateTime @default(now())
 
   student Student @relation(fields: [studentId], references: [id])
-  session  Session @relation(fields: [sessionId], references: [id])
+  session  Session  @relation(fields: [sessionId], references: [id])
 
   @@unique([studentId, sessionId])
+}
+
+model StudentActivity {
+  id          String   @id @default(cuid())
+  studentId   String
+  teacherId   String
+  sessionId   String?
+  sectionId   String
+  type        String   // HOMEWORK, EXAM, QUIZ, PARTICIPATION, BEHAVIOR, NOTE
+  title       String
+  description String?
+  grade       Float?
+  maxGrade    Float?
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  student  Student  @relation(fields: [studentId], references: [id])
+  teacher  Teacher  @relation(fields: [teacherId], references: [id])
+  session  Session? @relation(fields: [sessionId], references: [id])
+  section  Section  @relation(fields: [sectionId], references: [id])
 }
 
 model Invoice {
@@ -191,9 +244,11 @@ model InvoiceLineItem {
 model Notification {
   id        String   @id @default(cuid())
   userId    String
+  title     String?
   message   String
-  type      String   // ABSENCE, CANCELLATION, INVOICE, GENERAL
+  type      String   // ABSENCE, CANCELLATION, INVOICE, GENERAL, ACTIVITY, SYSTEM
   read      Boolean  @default(false)
+  link      String?  // Optional link to related entity
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

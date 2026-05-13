@@ -18,28 +18,31 @@ export async function GET(request: Request) {
       'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
     ];
 
-    // Get invoices grouped by month for the last 6 months
     const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
+    // Fetch all paid invoices for this institution
     const invoices = await db.invoice.findMany({
       where: {
         institutionId,
         status: 'PAID',
-        year: { gte: sixMonthsAgo.getFullYear() },
+      },
+      select: {
+        amount: true,
+        month: true,
+        year: true,
       },
     });
 
-    // Group by month
+    // Build 6-month revenue data
     const monthlyRevenue: Record<string, number> = {};
     for (let i = 5; i >= 0; i--) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const key = `${date.getFullYear()}-${date.getMonth() + 1}`;
       monthlyRevenue[key] = 0;
     }
 
     for (const inv of invoices) {
-      const key = `${inv.year}-${inv.month - 1}`;
+      const key = `${inv.year}-${inv.month}`;
       if (key in monthlyRevenue) {
         monthlyRevenue[key] += inv.amount;
       }
@@ -48,22 +51,12 @@ export async function GET(request: Request) {
     const data = Object.entries(monthlyRevenue).map(([key, revenue]) => {
       const [year, month] = key.split('-').map(Number);
       return {
-        month: arabicMonths[month],
+        month: arabicMonths[month - 1],
         revenue: Math.round(revenue),
+        year,
+        monthNumber: month,
       };
     });
-
-    // If no data, return sample data for demo
-    if (data.every(d => d.revenue === 0)) {
-      return NextResponse.json([
-        { month: 'يناير', revenue: 1200000 },
-        { month: 'فبراير', revenue: 1350000 },
-        { month: 'مارس', revenue: 1100000 },
-        { month: 'أبريل', revenue: 1480000 },
-        { month: 'مايو', revenue: 1520000 },
-        { month: 'يونيو', revenue: 1560000 },
-      ]);
-    }
 
     return NextResponse.json(data);
   } catch (error) {

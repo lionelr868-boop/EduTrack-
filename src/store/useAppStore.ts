@@ -12,11 +12,13 @@ export type ViewType =
   | 'director-billing'
   | 'director-reports'
   | 'director-settings'
+  | 'director-notifications'
   | 'teacher-dashboard'
   | 'teacher-schedule'
   | 'teacher-attendance'
   | 'teacher-students'
   | 'teacher-absence-request'
+  | 'teacher-notifications'
   | 'parent-dashboard'
   | 'parent-schedule'
   | 'parent-absences'
@@ -29,6 +31,8 @@ interface AuthUser {
   email: string;
   role: 'DIRECTOR' | 'TEACHER' | 'PARENT';
   institutionId: string;
+  teacherId?: string;
+  parentId?: string;
 }
 
 interface AppState {

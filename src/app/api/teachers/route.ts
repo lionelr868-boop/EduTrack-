@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const institutionId = searchParams.get('institutionId');
     const search = searchParams.get('search');
+    const level = searchParams.get('level');
 
     if (!institutionId) {
       return NextResponse.json({ error: 'institutionId is required' }, { status: 400 });
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = { institutionId };
 
+    if (level) where.level = level;
     if (search) {
       where.user = { name: { contains: search } };
     }
@@ -21,16 +23,34 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         user: { select: { id: true, name: true, email: true } },
-        subjects: {
+        subject: { select: { id: true, name: true, level: true } },
+        supervisedSections: {
           include: {
-            subject: { select: { id: true, name: true, level: true } },
+            year: { select: { name: true, level: true } },
+            students: { select: { id: true } },
           },
         },
       },
       orderBy: { user: { name: 'asc' } },
     });
 
-    return NextResponse.json({ teachers });
+    const mapped = teachers.map((teacher) => ({
+      id: teacher.id,
+      name: teacher.user.name,
+      email: teacher.user.email,
+      level: teacher.level,
+      subject: teacher.subject,
+      phone: teacher.phone,
+      specialization: teacher.specialization,
+      supervisedSections: teacher.supervisedSections.map((s) => ({
+        id: s.id,
+        name: s.name,
+        year: s.year,
+        studentCount: s.students.length,
+      })),
+    }));
+
+    return NextResponse.json({ teachers: mapped });
   } catch (error) {
     console.error('Error fetching teachers:', error);
     return NextResponse.json({ error: 'Failed to fetch teachers' }, { status: 500 });

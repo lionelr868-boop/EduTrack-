@@ -30,6 +30,8 @@ export async function POST(request: Request) {
       email: user.email,
       role: user.role,
       institutionId: user.institutionId,
+      teacherId: user.teacher?.id || undefined,
+      parentId: user.parent?.id || undefined,
     });
   } catch (error) {
     console.error('Login error:', error);

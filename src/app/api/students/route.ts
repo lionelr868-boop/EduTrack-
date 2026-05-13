@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const institutionId = searchParams.get('institutionId');
     const search = searchParams.get('search');
     const level = searchParams.get('level');
+    const sectionId = searchParams.get('sectionId');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
 
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
     const where: Record<string, unknown> = { institutionId };
 
     if (level) where.level = level;
+    if (sectionId) where.sectionId = sectionId;
     if (search) {
       where.name = { contains: search };
     }
@@ -31,6 +33,14 @@ export async function GET(request: NextRequest) {
               userId: true,
               phone: true,
               user: { select: { name: true, email: true } },
+            },
+          },
+          section: {
+            include: {
+              year: { select: { id: true, name: true, level: true, order: true } },
+              supervisor: {
+                include: { user: { select: { name: true } } },
+              },
             },
           },
         },
@@ -56,7 +66,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, level, institutionId, parentId } = body;
+    const { name, level, institutionId, parentId, sectionId } = body;
 
     if (!name || !level || !institutionId) {
       return NextResponse.json({ error: 'name, level, and institutionId are required' }, { status: 400 });
@@ -68,6 +78,7 @@ export async function POST(request: NextRequest) {
         level,
         institutionId,
         parentId: parentId || null,
+        sectionId: sectionId || null,
       },
       include: {
         parent: {
@@ -76,6 +87,11 @@ export async function POST(request: NextRequest) {
             userId: true,
             phone: true,
             user: { select: { name: true, email: true } },
+          },
+        },
+        section: {
+          include: {
+            year: { select: { name: true, level: true } },
           },
         },
       },

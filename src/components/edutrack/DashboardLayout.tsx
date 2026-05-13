@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, ViewType } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ import {
   X,
   ChevronLeft,
   User,
+  BellRing,
 } from 'lucide-react';
 
 interface NavItem {
@@ -53,6 +54,7 @@ const directorNavItems: NavItem[] = [
   { label: 'الغيابات', icon: <ClipboardX className="h-5 w-5" />, view: 'director-absences' },
   { label: 'الفوترة', icon: <Receipt className="h-5 w-5" />, view: 'director-billing' },
   { label: 'التقارير', icon: <BarChart3 className="h-5 w-5" />, view: 'director-reports' },
+  { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'director-notifications' },
   { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'director-settings' },
 ];
 
@@ -62,6 +64,7 @@ const teacherNavItems: NavItem[] = [
   { label: 'تسجيل الحضور', icon: <ClipboardCheck className="h-5 w-5" />, view: 'teacher-attendance' },
   { label: 'الطلاب', icon: <GraduationCap className="h-5 w-5" />, view: 'teacher-students' },
   { label: 'إبلاغ غياب', icon: <AlertCircle className="h-5 w-5" />, view: 'teacher-absence-request' },
+  { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'teacher-notifications' },
 ];
 
 const parentNavItems: NavItem[] = [
@@ -87,6 +90,15 @@ function getRoleLabel(role: string): string {
     case 'TEACHER': return 'أستاذ';
     case 'PARENT': return 'ولي أمر';
     default: return 'مستخدم';
+  }
+}
+
+function getNotificationsView(role: string): ViewType {
+  switch (role) {
+    case 'DIRECTOR': return 'director-notifications';
+    case 'TEACHER': return 'teacher-notifications';
+    case 'PARENT': return 'parent-notifications';
+    default: return 'director-notifications';
   }
 }
 
@@ -175,6 +187,9 @@ function HeaderContent() {
   const { user, setUser, setCurrentView, setSidebarOpen } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const userIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -183,11 +198,45 @@ function HeaderContent() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  // Keep userId ref in sync
+  useEffect(() => {
+    userIdRef.current = user?.id;
+  }, [user]);
+
+  // Fetch unread count on mount and every 30 seconds
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      const uid = userIdRef.current;
+      if (!uid) return;
+      try {
+        const res = await fetch(`/api/notifications?userId=${uid}&unreadOnly=true&limit=1`);
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.unreadCount || 0);
+        }
+      } catch {
+        // Silently fail
+      }
+    };
+
+    fetchUnreadCount();
+    intervalRef.current = setInterval(fetchUnreadCount, 30000);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [user?.id]);
+
   if (!user) return null;
 
   const handleLogout = () => {
     setUser(null);
     setCurrentView('login');
+  };
+
+  const handleNotificationClick = () => {
+    setCurrentView(getNotificationsView(user.role));
   };
 
   return (
@@ -225,32 +274,29 @@ function HeaderContent() {
       </div>
 
       {/* Notification Bell */}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon" className="relative h-9 w-9 text-edutrack-dark hover:bg-edutrack-primary/10">
-            <Bell className="h-5 w-5" />
-            <Badge className="absolute -top-1 -left-1 h-5 w-5 flex items-center justify-center p-0 bg-edutrack-danger text-white text-[10px] font-bold border-2 border-white rounded-full">
-              3
-            </Badge>
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-72">
-          <DropdownMenuLabel className="text-sm font-bold">الإشعارات</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-            <span className="text-sm font-medium">3 تلاميذ غابوا اليوم</span>
-            <span className="text-xs text-muted-foreground">لم يُبلَّغ أولياؤهم بعد</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-            <span className="text-sm font-medium">5 فواتير متأخرة</span>
-            <span className="text-xs text-muted-foreground">تحتاج متابعة هذا الشهر</span>
-          </DropdownMenuItem>
-          <DropdownMenuItem className="flex flex-col items-start gap-1 py-3 cursor-pointer">
-            <span className="text-sm font-medium">حصة تعويضية مبرمجة</span>
-            <span className="text-xs text-muted-foreground">الفيزياء - يوم الخميس</span>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleNotificationClick}
+        className="relative h-9 w-9 text-edutrack-dark hover:bg-edutrack-primary/10"
+      >
+        {unreadCount > 0 ? (
+          <BellRing className="h-5 w-5 text-edutrack-primary" />
+        ) : (
+          <Bell className="h-5 w-5" />
+        )}
+        {unreadCount > 0 && (
+          <motion.span
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className={`absolute -top-1 -left-1 h-5 min-w-[20px] flex items-center justify-center p-0 bg-edutrack-danger text-white text-[10px] font-bold border-2 border-white rounded-full ${
+              unreadCount > 0 ? 'animate-pulse' : ''
+            }`}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </motion.span>
+        )}
+      </Button>
 
       {/* User Avatar + Dropdown */}
       <DropdownMenu>
@@ -279,6 +325,18 @@ function HeaderContent() {
           <DropdownMenuItem className="cursor-pointer flex-row-reverse justify-end gap-2">
             <User className="h-4 w-4" />
             <span>الملف الشخصي</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={handleNotificationClick}
+            className="cursor-pointer flex-row-reverse justify-end gap-2"
+          >
+            <Bell className="h-4 w-4" />
+            <span>الإشعارات</span>
+            {unreadCount > 0 && (
+              <Badge className="mr-auto bg-edutrack-danger text-white text-[10px] h-5 min-w-[20px] flex items-center justify-center p-0 rounded-full">
+                {unreadCount}
+              </Badge>
+            )}
           </DropdownMenuItem>
           <DropdownMenuItem className="cursor-pointer flex-row-reverse justify-end gap-2">
             <Settings className="h-4 w-4" />
