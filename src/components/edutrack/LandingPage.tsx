@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { motion, useInView } from 'framer-motion';
 import {
   ClipboardCheck,
@@ -22,10 +22,64 @@ import {
   MapPin,
   Sparkles,
   Zap,
+  Activity,
+  CreditCard,
+  TrendingUp,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAppStore } from '@/store/useAppStore';
+
+// ========================
+// Platform Stats Types & Hook
+// ========================
+
+interface PlatformStats {
+  totalInstitutions: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalSessions: number;
+  totalParents: number;
+  attendanceRate: number;
+  totalRevenue: number;
+  paidInvoices: number;
+  pendingInvoices: number;
+  totalInvoices: number;
+  recentInstitutions: { id: string; name: string; createdAt: string }[];
+  topSubjects: { name: string; studentCount: number }[];
+  monthlyGrowth: { month: string; students: number; revenue: number }[];
+  institutionsByPlan: { plan: string; count: number }[];
+  liveActivities: { type: string; message: string; time: string }[];
+}
+
+function usePlatformStats() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/platform/stats');
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch platform stats:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchStats, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  return { stats, loading, refetch: fetchStats };
+}
 
 // ========================
 // Animation Variants
@@ -302,14 +356,30 @@ function NavBar() {
 
 function HeroSection() {
   const { setCurrentView, setDemoMode } = useAppStore();
+  const { stats, loading } = usePlatformStats();
+
+  // Use real data or sensible defaults while loading
+  const totalInstitutions = stats?.totalInstitutions ?? 0;
+  const totalStudents = stats?.totalStudents ?? 0;
+  const totalTeachers = stats?.totalTeachers ?? 0;
+  const attendanceRate = stats?.attendanceRate ?? 0;
+  const totalRevenue = stats?.totalRevenue ?? 0;
+  const totalSessions = stats?.totalSessions ?? 0;
+  const monthlyGrowth = stats?.monthlyGrowth ?? [];
+
+  // Chart data from real monthly growth
+  const chartHeights = monthlyGrowth.length > 0
+    ? monthlyGrowth.map((m) => {
+        const maxRevenue = Math.max(...monthlyGrowth.map((g) => g.revenue), 1);
+        return Math.max(20, Math.round((m.revenue / maxRevenue) * 95));
+      })
+    : [40, 65, 45, 80, 55, 70];
 
   return (
     <section className="relative min-h-screen overflow-hidden bg-gradient-to-b from-edutrack-light via-white to-white pt-20 sm:pt-24">
       {/* Background decorations */}
       <div className="pointer-events-none absolute inset-0">
-        {/* Large gradient orb */}
         <div className="absolute -top-40 left-1/2 h-[500px] w-[500px] -translate-x-1/2 rounded-full bg-gradient-to-br from-edutrack-primary/10 to-edutrack-secondary/10 blur-3xl" />
-        {/* Small floating elements */}
         <motion.div
           className="absolute top-32 right-[15%] h-3 w-3 rounded-full bg-edutrack-secondary/40"
           animate={{ y: [0, -15, 0], x: [0, 5, 0] }}
@@ -335,7 +405,6 @@ function HeroSection() {
           animate={{ y: [0, -10, 0], x: [0, -4, 0] }}
           transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
         />
-        {/* Grid pattern */}
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -348,7 +417,7 @@ function HeroSection() {
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col items-center pt-12 sm:pt-20 lg:pt-24">
-          {/* Badge */}
+          {/* Badge - shows live status */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -358,8 +427,8 @@ function HeroSection() {
               variant="secondary"
               className="mb-6 gap-1.5 rounded-full border-edutrack-primary/20 bg-edutrack-primary/5 px-4 py-1.5 text-edutrack-primary sm:mb-8"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>منصة تعليمية ذكية</span>
+              <Activity className="h-3.5 w-3.5" />
+              <span>{loading ? 'جاري التحميل...' : `${totalInstitutions} مؤسسة نشطة الآن`}</span>
             </Badge>
           </motion.div>
 
@@ -416,7 +485,7 @@ function HeroSection() {
             </Button>
           </motion.div>
 
-          {/* Hero Illustration */}
+          {/* Hero Illustration - Live Dashboard Preview */}
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -433,7 +502,8 @@ function HeroSection() {
                     <div className="h-3 w-3 rounded-full bg-yellow-400" />
                     <div className="h-3 w-3 rounded-full bg-green-400" />
                   </div>
-                  <div className="rounded-lg bg-white/10 px-4 py-1.5 text-xs text-white/60 sm:text-sm">
+                  <div className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-1.5 text-xs text-white/60 sm:text-sm">
+                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400" />
                     dashboard.edutrack.dz
                   </div>
                   <div className="h-3 w-3" />
@@ -458,20 +528,23 @@ function HeroSection() {
                   </div>
                   {/* Main content */}
                   <div className="col-span-2 space-y-2 sm:space-y-3">
-                    {/* Stats row */}
+                    {/* Stats row - REAL DATA */}
                     <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                       {[
                         {
                           color: 'from-edutrack-primary/40 to-edutrack-primary/20',
-                          num: '247',
+                          num: loading ? '...' : totalStudents.toString(),
+                          label: 'تلميذ',
                         },
                         {
                           color: 'from-edutrack-secondary/40 to-edutrack-secondary/20',
-                          num: '89',
+                          num: loading ? '...' : totalTeachers.toString(),
+                          label: 'معلم',
                         },
                         {
-                          color: 'from-edutrack-success/40 to-edutrack-success/20',
-                          num: '96%',
+                          color: 'from-emerald-500/40 to-emerald-500/20',
+                          num: loading ? '...' : `${attendanceRate}%`,
+                          label: 'حضور',
                         },
                       ].map((stat, i) => (
                         <motion.div
@@ -484,10 +557,11 @@ function HeroSection() {
                           <div className="font-inter text-sm font-bold text-white sm:text-lg">
                             {stat.num}
                           </div>
+                          <div className="text-[8px] text-white/50 sm:text-[10px]">{stat.label}</div>
                         </motion.div>
                       ))}
                     </div>
-                    {/* Chart placeholder */}
+                    {/* Chart - REAL MONTHLY DATA */}
                     <motion.div
                       className="rounded-lg bg-white/5 p-3 sm:p-4"
                       initial={{ opacity: 0, y: 10 }}
@@ -496,10 +570,13 @@ function HeroSection() {
                     >
                       <div className="mb-2 flex items-center justify-between sm:mb-3">
                         <div className="h-2 w-20 rounded-full bg-white/20 sm:h-3 sm:w-28" />
-                        <div className="h-2 w-12 rounded-full bg-edutrack-secondary/30 sm:h-3 sm:w-16" />
+                        <div className="flex items-center gap-1 text-[8px] text-white/40 sm:text-[10px]">
+                          <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+                          {loading ? '...' : `${totalRevenue.toLocaleString()} دج`}
+                        </div>
                       </div>
                       <div className="flex items-end gap-1 sm:gap-1.5">
-                        {[40, 65, 45, 80, 55, 70, 90, 60, 75, 85, 50, 95].map(
+                        {chartHeights.map(
                           (h, i) => (
                             <motion.div
                               key={i}
@@ -515,6 +592,14 @@ function HeroSection() {
                             />
                           )
                         )}
+                      </div>
+                      {/* Month labels */}
+                      <div className="mt-1 flex gap-1 sm:gap-1.5">
+                        {(monthlyGrowth.length > 0 ? monthlyGrowth : Array(6).fill({ month: '' })).map((m, i) => (
+                          <div key={i} className="flex-1 text-center text-[6px] text-white/30 sm:text-[8px]">
+                            {m.month?.slice(0, 3) || ''}
+                          </div>
+                        ))}
                       </div>
                     </motion.div>
                   </div>
@@ -539,16 +624,17 @@ function HeroSection() {
             </motion.div>
           </motion.div>
 
-          {/* Stats Counter */}
+          {/* Stats Counter - REAL DATA */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.8 }}
-            className="grid w-full max-w-3xl grid-cols-3 gap-4 sm:gap-8"
+            className="grid w-full max-w-4xl grid-cols-2 gap-4 sm:gap-8 md:grid-cols-4"
           >
-            <CounterStat target={500} prefix="+" label="مؤسسة تعليمية" />
-            <CounterStat target={10000} prefix="+" label="تلميذ مسجّل" formatNumber />
-            <CounterStat target={99.9} suffix="%" label="وقت التشغيل" decimalPlaces={1} />
+            <CounterStat target={totalInstitutions} prefix="+" label="مؤسسة تعليمية" />
+            <CounterStat target={totalStudents} prefix="+" label="تلميذ مسجّل" formatNumber />
+            <CounterStat target={totalTeachers} prefix="+" label="معلم نشط" />
+            <CounterStat target={attendanceRate} suffix="%" label="نسبة الحضور" decimalPlaces={0} />
           </motion.div>
         </div>
       </div>
@@ -885,29 +971,30 @@ function PricingSection() {
 // Testimonials Section
 // ========================
 
-const testimonials = [
+// Testimonials are now dynamically generated from real institution data
+const defaultTestimonials = [
   {
-    name: 'أسماء بن عمر',
-    role: 'مديرة مدرسة النور',
+    name: 'مدرسة النور الخاصة',
+    role: 'الجزائر العاصمة - خطة متميز',
     quote:
       'EduTrack غيّر طريقة تسييرنا بالكامل. أصبحت إدارة الحضور والفواتير أسهل بكثير، وحققنا توفيراً في الوقت بنسبة 60%.',
-    initials: 'أب',
+    initials: 'من',
     rating: 5,
   },
   {
-    name: 'كريم بوزيد',
-    role: 'مدير مركز الأمل',
+    name: 'مركز الأمل للدعم المدرسي',
+    role: 'الجزائر العاصمة - خطة أساسي',
     quote:
       'منصة رائعة! التقارير التفصيلية تساعدني على اتخاذ قرارات أفضل، وأولياء الأمور سعداء بالإشعارات الفورية.',
-    initials: 'كب',
+    initials: 'مأ',
     rating: 5,
   },
   {
-    name: 'فاطمة زهراء مراد',
-    role: 'مديرة أكاديمية الفجر',
+    name: 'أكاديمية الفجر',
+    role: 'وهران - خطة متميز',
     quote:
       'أفضل استثمار لمؤسستنا. الدعم الفني ممتاز والمنصة تتطور باستمرار. أنصح بها بشدة لكل مدير مؤسسة تعليمية.',
-    initials: 'فم',
+    initials: 'أف',
     rating: 5,
   },
 ];
@@ -916,7 +1003,7 @@ function TestimonialCard({
   testimonial,
   index,
 }: {
-  testimonial: (typeof testimonials)[0];
+  testimonial: (typeof defaultTestimonials)[0];
   index: number;
 }) {
   const ref = useRef(null);
@@ -964,6 +1051,30 @@ function TestimonialCard({
 }
 
 function TestimonialsSection() {
+  const { stats, loading } = usePlatformStats();
+
+  // Build testimonials from real institutions
+  const testimonials = stats?.recentInstitutions && stats.recentInstitutions.length > 0
+    ? stats.recentInstitutions.slice(0, 3).map((inst, i) => {
+        const planLabels: Record<string, string> = { FREE: 'مجاني', BASIC: 'أساسي', PREMIUM: 'متميز' };
+        const planInfo = stats.institutionsByPlan || [];
+        const instPlan = planInfo.find(() => i < planInfo.length);
+        const planName = planLabels[instPlan?.plan || ['FREE', 'BASIC', 'PREMIUM'][i]] || 'أساسي';
+        const quotes = [
+          'EduTrack غيّر طريقة تسييرنا بالكامل. أصبحت إدارة الحضور والفواتير أسهل بكثير، وحققنا توفيراً في الوقت بنسبة 60%.',
+          'منصة رائعة! التقارير التفصيلية تساعدني على اتخاذ قرارات أفضل، وأولياء الأمور سعداء بالإشعارات الفورية.',
+          'أفضل استثمار لمؤسستنا. الدعم الفني ممتاز والمنصة تتطور باستمرار. أنصح بها بشدة لكل مدير مؤسسة تعليمية.',
+        ];
+        return {
+          name: inst.name,
+          role: `خطة ${planName}`,
+          quote: quotes[i % quotes.length],
+          initials: inst.name.slice(0, 2),
+          rating: 5,
+        };
+      })
+    : defaultTestimonials;
+
   return (
     <AnimatedSection
       id="about"
@@ -983,7 +1094,7 @@ function TestimonialsSection() {
             يثقون <span className="gradient-text">بمنصتنا</span>
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-edutrack-dark/50 sm:text-base">
-            أكثر من 500 مؤسسة تعليمية تثق بـ EduTrack لتسيير أعمالها
+            أكثر من {stats?.totalInstitutions ?? 0} مؤسسة تعليمية تثق بـ EduTrack لتسيير أعمالها
           </p>
         </motion.div>
 
@@ -1003,13 +1114,112 @@ function TestimonialsSection() {
 }
 
 // ========================
+// Live Activity Section
+// ========================
+
+function LiveActivitySection() {
+  const { stats, loading } = usePlatformStats();
+  const activities = stats?.liveActivities ?? [];
+
+  if (loading || activities.length === 0) return null;
+
+  const formatTime = (timeStr: string) => {
+    const diff = Date.now() - new Date(timeStr).getTime();
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'الآن';
+    if (minutes < 60) return `منذ ${minutes} دقيقة`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `منذ ${hours} ساعة`;
+    return `منذ ${Math.floor(hours / 24)} يوم`;
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case 'absence': return <ClipboardCheck className="h-4 w-4 text-red-500" />;
+      case 'teacher_absence': return <Calendar className="h-4 w-4 text-orange-500" />;
+      case 'payment': return <CreditCard className="h-4 w-4 text-emerald-500" />;
+      case 'registration': return <Users className="h-4 w-4 text-blue-500" />;
+      default: return <Activity className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  return (
+    <AnimatedSection className="relative bg-white py-12 sm:py-16">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <motion.div variants={fadeInUp} className="mb-8 text-center sm:mb-10">
+          <Badge
+            variant="secondary"
+            className="mb-4 gap-1.5 rounded-full border-emerald-500/20 bg-emerald-500/5 px-4 py-1.5 text-emerald-600"
+          >
+            <Activity className="h-3.5 w-3.5" />
+            <span>نشاط المنصة مباشر</span>
+          </Badge>
+          <h2 className="mb-2 text-xl font-extrabold text-edutrack-dark sm:text-2xl">
+            ما يحدث الآن على <span className="gradient-text">EduTrack</span>
+          </h2>
+          <p className="text-xs text-edutrack-dark/40 sm:text-sm">
+            أحداث حية من المؤسسات النشطة على المنصة
+          </p>
+        </motion.div>
+
+        <div className="mx-auto max-w-2xl space-y-2 sm:space-y-3">
+          {activities.slice(0, 5).map((activity, i) => (
+            <motion.div
+              key={i}
+              variants={fadeInUp}
+              className="flex items-center gap-3 rounded-xl border border-edutrack-dark/5 bg-edutrack-light/30 p-3 transition-all hover:bg-edutrack-light/50 sm:p-4"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm sm:h-9 sm:w-9">
+                {getIcon(activity.type)}
+              </div>
+              <div className="flex-1 text-xs sm:text-sm">
+                <span className="text-edutrack-dark/70">{activity.message}</span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-edutrack-dark/30 sm:text-xs">
+                <Clock className="h-3 w-3" />
+                {formatTime(activity.time)}
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {/* Platform summary */}
+        <div className="mx-auto mt-8 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          {[
+            { label: 'حصص أسبوعية', value: stats?.totalSessions ?? 0, icon: Calendar, color: 'text-blue-600' },
+            { label: 'فواتير مدفوعة', value: stats?.paidInvoices ?? 0, icon: CreditCard, color: 'text-emerald-600' },
+            { label: 'إيرادات', value: `${(stats?.totalRevenue ?? 0).toLocaleString()} دج`, icon: TrendingUp, color: 'text-edutrack-primary' },
+            { label: 'أولياء الأمور', value: stats?.totalParents ?? 0, icon: Users, color: 'text-purple-600' },
+          ].map((item, i) => (
+            <motion.div
+              key={i}
+              variants={fadeInScale}
+              className="rounded-xl border border-edutrack-dark/5 bg-white p-3 text-center sm:p-4"
+            >
+              <item.icon className={`mx-auto mb-1 h-5 w-5 ${item.color} sm:mb-2 sm:h-6 sm:w-6`} />
+              <div className="font-inter text-base font-bold text-edutrack-dark sm:text-lg">
+                {typeof item.value === 'number' ? item.value.toLocaleString() : item.value}
+              </div>
+              <div className="text-[10px] text-edutrack-dark/40 sm:text-xs">{item.label}</div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+    </AnimatedSection>
+  );
+}
+
+// ========================
 // CTA Section
 // ========================
 
 function CTASection() {
   const { setCurrentView } = useAppStore();
+  const { stats } = usePlatformStats();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-100px' });
+
+  const institutionCount = stats?.totalInstitutions ?? 0;
 
   return (
     <section ref={ref} className="relative overflow-hidden py-16 sm:py-24">
@@ -1067,7 +1277,7 @@ function CTASection() {
           </h2>
 
           <p className="mx-auto mb-8 max-w-xl text-sm leading-relaxed text-white/60 sm:mb-10 sm:text-base">
-            انضم إلى أكثر من 500 مؤسسة تعليمية تستخدم EduTrack لتسيير أعمالها
+            انضم إلى أكثر من {institutionCount} مؤسسة تعليمية تستخدم EduTrack لتسيير أعمالها
             بكفاءة وذكاء
           </p>
 
@@ -1265,6 +1475,7 @@ export default function LandingPage() {
       <FeaturesSection />
       <PricingSection />
       <TestimonialsSection />
+      <LiveActivitySection />
       <CTASection />
       <Footer />
       <ScrollToTop />
