@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
@@ -21,9 +21,17 @@ import {
   Bell,
   Loader2,
   ArrowLeft,
+  Zap,
+  X,
 } from 'lucide-react';
 
 type RoleType = 'DIRECTOR' | 'TEACHER' | 'PARENT';
+
+const demoCredentials: Record<RoleType, { email: string; password: string }> = {
+  DIRECTOR: { email: 'director1@edutrack.dz', password: 'demo123' },
+  TEACHER: { email: 'teacher1@edutrack.dz', password: 'demo123' },
+  PARENT: { email: 'parent1@edutrack.dz', password: 'demo123' },
+};
 
 const roleConfig: Record<RoleType, { label: string; icon: React.ReactNode; color: string }> = {
   DIRECTOR: { label: 'مدير', icon: <Shield className="h-4 w-4" />, color: 'bg-edutrack-primary' },
@@ -32,7 +40,7 @@ const roleConfig: Record<RoleType, { label: string; icon: React.ReactNode; color
 };
 
 export default function LoginPage() {
-  const { setCurrentView, setUser } = useAppStore();
+  const { setCurrentView, setUser, demoMode, setDemoMode } = useAppStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -41,6 +49,15 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Auto-fill demo credentials when role changes in demo mode
+  useEffect(() => {
+    if (demoMode) {
+      const creds = demoCredentials[selectedRole];
+      setEmail(creds.email);
+      setPassword(creds.password);
+    }
+  }, [selectedRole, demoMode]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,13 +96,6 @@ export default function LoginPage() {
     setError('');
     setDemoLoading(true);
 
-    // Demo credentials based on selected role
-    const demoCredentials: Record<RoleType, { email: string; password: string }> = {
-      DIRECTOR: { email: 'director1@edutrack.dz', password: 'demo123' },
-      TEACHER: { email: 'teacher1@edutrack.dz', password: 'demo123' },
-      PARENT: { email: 'parent1@edutrack.dz', password: 'demo123' },
-    };
-
     const creds = demoCredentials[selectedRole];
 
     try {
@@ -117,6 +127,10 @@ export default function LoginPage() {
     } finally {
       setDemoLoading(false);
     }
+  };
+
+  const handleRoleSelect = (role: RoleType) => {
+    setSelectedRole(role);
   };
 
   const features = [
@@ -163,6 +177,32 @@ export default function LoginPage() {
             <p className="text-muted-foreground mt-1">أدخل بياناتك للوصول إلى حسابك</p>
           </motion.div>
 
+          {/* Demo Mode Banner */}
+          <AnimatePresence>
+            {demoMode && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mb-4"
+              >
+                <div className="bg-edutrack-secondary/10 border border-edutrack-secondary/30 text-edutrack-secondary px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 flex-shrink-0" />
+                    <span>وضع تجريبي — اختر الدور ثم اضغط &quot;دخول تجريبي&quot;</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDemoMode(false)}
+                    className="text-edutrack-secondary/60 hover:text-edutrack-secondary transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {/* Error Message */}
           <AnimatePresence>
             {error && (
@@ -192,7 +232,7 @@ export default function LoginPage() {
                 <button
                   key={role}
                   type="button"
-                  onClick={() => setSelectedRole(role)}
+                  onClick={() => handleRoleSelect(role)}
                   className={`relative flex flex-col items-center gap-1.5 py-3 px-2 rounded-xl border-2 transition-all duration-300 ${
                     selectedRole === role
                       ? 'border-edutrack-primary bg-edutrack-primary/5 shadow-md shadow-edutrack-primary/10'
@@ -315,14 +355,18 @@ export default function LoginPage() {
                   variant="outline"
                   disabled={demoLoading}
                   onClick={handleDemoLogin}
-                  className="w-full h-11 border-2 border-dashed border-edutrack-secondary/50 text-edutrack-secondary hover:bg-edutrack-secondary/5 hover:border-edutrack-secondary font-medium rounded-lg transition-all duration-300"
+                  className={`w-full h-11 font-medium rounded-lg transition-all duration-300 ${
+                    demoMode
+                      ? 'border-2 border-edutrack-secondary bg-edutrack-secondary/10 text-edutrack-secondary hover:bg-edutrack-secondary/20 hover:border-edutrack-secondary shadow-md shadow-edutrack-secondary/10'
+                      : 'border-2 border-dashed border-edutrack-secondary/50 text-edutrack-secondary hover:bg-edutrack-secondary/5 hover:border-edutrack-secondary'
+                  }`}
                 >
                   {demoLoading ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <>
-                      <Shield className="h-4 w-4 ml-2" />
-                      دخول تجريبي
+                      <Zap className="h-4 w-4 ml-2" />
+                      دخول تجريبي كـ{roleConfig[selectedRole].label}
                     </>
                   )}
                 </Button>

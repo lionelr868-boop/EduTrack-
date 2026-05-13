@@ -225,6 +225,44 @@ export async function POST(request: Request) {
   }
 }
 
+// DELETE /api/activities?id=XXX - Delete a student activity
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Activity id is required' },
+        { status: 400 }
+      );
+    }
+
+    const activity = await db.studentActivity.findUnique({
+      where: { id },
+    });
+
+    if (!activity) {
+      return NextResponse.json(
+        { error: 'النشاط غير موجود' },
+        { status: 404 }
+      );
+    }
+
+    await db.studentActivity.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true, message: 'تم حذف النشاط بنجاح' });
+  } catch (error) {
+    console.error('Activities DELETE error:', error);
+    return NextResponse.json(
+      { error: 'خطأ في الخادم' },
+      { status: 500 }
+    );
+  }
+}
+
 function getActivityTypeLabel(type: string): string {
   const labels: Record<string, string> = {
     HOMEWORK: 'واجب منزلي',

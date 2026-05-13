@@ -272,11 +272,19 @@ function NavBar() {
             <Button
               variant="ghost"
               className="text-edutrack-dark/70 hover:text-edutrack-primary"
+              onClick={() => setCurrentView('login')}
+            >
+              تسجيل الدخول
+            </Button>
+            <Button
+              variant="ghost"
+              className="text-edutrack-secondary hover:text-edutrack-secondary/80"
               onClick={() => {
                 setDemoMode(true);
                 setCurrentView('login');
               }}
             >
+              <Zap className="ml-1.5 h-4 w-4" />
               عرض تجريبي
             </Button>
             <Button
@@ -328,11 +336,19 @@ function NavBar() {
               <Button
                 variant="outline"
                 className="w-full rounded-xl"
+                onClick={() => setCurrentView('login')}
+              >
+                تسجيل الدخول
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full rounded-xl border-edutrack-secondary/40 text-edutrack-secondary hover:bg-edutrack-secondary/5"
                 onClick={() => {
                   setDemoMode(true);
                   setCurrentView('login');
                 }}
               >
+                <Zap className="ml-1.5 h-4 w-4" />
                 عرض تجريبي
               </Button>
               <Button

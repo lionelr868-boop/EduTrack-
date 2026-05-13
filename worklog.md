@@ -184,3 +184,70 @@ Stage Summary:
 - Login works for all three roles
 - No new lint errors
 - Application is functional
+
+---
+Task ID: 2 (Agent Task)
+Agent: API Rewrite Agent
+Task: Rewrite admin dashboard stats API to return comprehensive data in ONE response
+
+Work Log:
+- Completely rewrote /api/dashboard/stats/route.ts
+- Consolidated data from 4 separate endpoints (stats, revenue-chart, attendance-chart, activities) + years + teachers + notifications into a single GET response
+- All 10 required data sections implemented:
+  1. Basic Stats: totalStudents, totalTeachers, totalSections, totalYears, attendanceRate, monthlyRevenue, unexcusedAbsences, todaySessionsCount, totalSessions, studentAbsences, teacherAbsences, pendingInvoices, overdueInvoices
+  2. Revenue Trend (last 6 months): Array of { month, revenue, paidInvoices }
+  3. Attendance Trend (by day of week): Array of { day, rate }
+  4. Students by Level: Array of { level, count, color }
+  5. Sections by Level: Array of { level, count }
+  6. Years with Sections hierarchy: Array of { id, name, level, order, sections: [...] }
+  7. Teachers with their data: Array of { id, name, subjectName, level, phone, supervisedSections }
+  8. Absence Distribution: { student, teacher }
+  9. Recent Activities (last 15): Array of { id, text, time, color, type }
+  10. Notifications summary: { unreadCount, latest: [...] }
+- Used Promise.all for parallel database queries (18 queries in one batch)
+- Accepted optional userId parameter for notifications summary
+- Arabic day/month names, level colors hardcoded as constants
+- Recent activities built from absences, paid invoices, new students, and student activities
+- Tested with real seed data - all sections return correct values
+- Lint check passes with no new errors
+
+Stage Summary:
+- Single API endpoint replaces multiple calls for dashboard data
+- Efficient parallel queries via Promise.all
+- All 10 data sections verified working with real data
+- Backward compatible: revenue/monthlyRevenue both returned
+
+---
+Task ID: 7
+Agent: Login Fix Agent
+Task: Fix demo account login flow
+
+Work Log:
+- Verified login API works correctly for all three demo accounts via curl (director, teacher, parent)
+- Verified Zustand store (useAppStore) handles user state and view transitions correctly
+- Verified page.tsx routing maps all role-based dashboard views correctly
+- Identified UX issues with the login flow:
+  1. LandingPage NavBar had no "تسجيل الدخول" (Login) link - only "عرض تجريبي" (Demo)
+  2. LoginPage did not auto-fill demo credentials when in demo mode
+  3. Demo login button did not show which role the user would log in as
+  4. No visual indicator for demo mode
+- Added "تسجيل الدخول" (Login) button to LandingPage NavBar (desktop and mobile)
+- Added "عرض تجريبي" button with Zap icon alongside Login button in NavBar
+- Updated LoginPage component:
+  - Auto-fills email/password fields with demo credentials when in demo mode
+  - Updates credentials when role selector changes (e.g., switching from Director to Teacher)
+  - Added demo mode banner with instructions and dismiss button
+  - Demo login button now shows "دخول تجريبي كـ[role]" (Demo login as [role])
+  - Demo button is visually prominent when in demo mode (solid border vs dashed)
+- Verified all three demo accounts work end-to-end via browser testing:
+  - director1@edutrack.dz / demo123 → Director Dashboard ✅
+  - teacher1@edutrack.dz / demo123 → Teacher Dashboard ✅
+  - parent1@edutrack.dz / demo123 → Parent Dashboard ✅
+- Verified manual login flow works (fill email/password, click submit)
+- Lint check passes (only pre-existing watchdog.js errors)
+
+Stage Summary:
+- Demo login flow now works smoothly with auto-filled credentials
+- Users can clearly find the login page via NavBar "تسجيل الدخول" link
+- Demo mode provides clear visual feedback and instructions
+- All three demo accounts verified working in browser
