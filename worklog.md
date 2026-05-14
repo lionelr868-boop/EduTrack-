@@ -357,3 +357,70 @@ Stage Summary:
 - Notifications: 8 types, interactive actions, delete, auto-refresh, enhanced pulse
 - Cross-dashboard: Quick actions in dashboard, messaging shared across roles, settings per role
 - All lint clean (only pre-existing errors in watchdog.js and layout.tsx)
+---
+Task ID: Dashboard-Rewrite
+Agent: TeacherDashboard Rewrite Agent
+Task: Completely rewrite TeacherDashboard component for polished, balanced, professional layout
+
+Work Log:
+- Read worklog.md to understand previous agents' work (server stability, settings, messaging, teacher APIs, notifications)
+- Read current TeacherDashboard.tsx (1198 lines) to understand existing interfaces, data types, and patterns
+- Identified key problems: too many vertical sections, imbalanced 2-column layout (3 left vs 2 right), inline activity form causing layout jumps, excessive animation delays, disconnected sections
+- Completely rewrote TeacherDashboard.tsx with new 4-section layout:
+  1. Welcome Header (Hero Banner): gradient card (edutrack-dark to edutrack-primary) with white text, avatar with initials, teacher name prominently displayed, subject badge, level badge, date badge, sessions count badge
+  2. Stats Row: 4 equal cards in a row (2x2 on mobile, 4x1 on desktop) - weekly attendance (emerald), sessions without attendance (amber), total students (edutrack-primary), supervised sections (teal) - all clickable navigating to corresponding views
+  3. Quick Actions: horizontal strip of 4 compact pill/rounded-full buttons with icon + label (تسجيل الحضور, المراسلات, تلاميذي, إبلاغ غياب)
+  4. Two-column balanced grid:
+     - Left Column: حصص اليوم (compact list with time, separator, subject, section, status badge; clicking navigates to teacher-attendance) + تنبيهات الغياب (compact list with red dot, student name, subject, time; clicking navigates to teacher-students; clean empty state with checkmark)
+     - Right Column: نسبة الحضور الأسبوعية (bar chart with Recharts, same as before with cleaner styling) + آخر الأنشطة (compact list with type badge, title, student name, grade; "إضافة نشاط" button opens Sheet)
+- Moved activity form from inline collapsible to Sheet (side panel from left for RTL):
+  - Sheet with SheetHeader, SheetTitle, close button
+  - Same fields: section, student, type, title, description, grades
+  - Submit closes sheet, refreshes activities, shows toast
+- Removed: Collapsible supervised sections card (now shown as stat card), inline activity form, AnimatePresence on form, excessive per-item motion animations with staggered delays, ChevronDown/Collapsible imports, sectionsExpanded state
+- Added: Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, Separator, Avatar, AvatarFallback, ShieldCheck, Sparkles imports
+- Simplified framer-motion: single page-level entrance animation (opacity + y) instead of containerVariants/itemVariants stagger pattern
+- Preserved all TypeScript interfaces (TodaySession, SupervisedSection, SectionWithStudents, ActivityItem, AbsenceAlert, DashboardData)
+- Preserved all data fetching logic (GET /api/teacher/dashboard, GET /api/activities, POST /api/activities)
+- Preserved activityTypeLabels, activityTypeIcons, activityTypeColors, statusConfig, CustomTooltip
+- Added levelLabels mapping for hero badge
+- All shadcn/ui components used as specified, Arabic RTL dir="rtl" throughout
+- Consistent padding (p-4/p-6), balanced card heights, no visual clutter
+- Ran lint check - no new errors (only pre-existing errors in layout.tsx and watchdog.js)
+- Dev server running properly on port 3000
+
+Stage Summary:
+- TeacherDashboard completely rewritten from ~1198 lines to ~580 lines (50% reduction)
+- Layout reorganized from cluttered vertical stack to clean 4-section hierarchy
+- Imbalanced 3-left/2-right column layout replaced with balanced 2-left/2-right grid
+- Inline activity form replaced with Sheet side panel (eliminates layout jumps)
+- Per-item staggered animations replaced with single page-level entrance animation
+- Supervised sections moved from collapsible card to 4th stat card
+- All navigation wired: stat cards clickable, session items clickable, absence alerts clickable, quick action pills functional
+- All TypeScript interfaces preserved for API compatibility
+
+---
+Task ID: Dashboard-Rewrite
+Agent: Main Orchestrator
+Task: Rewrite TeacherDashboard for consistency and balanced layout
+
+Work Log:
+- Completely rewrote TeacherDashboard.tsx (1198 → 1053 lines)
+- Changed layout from unbalanced vertical stack to balanced 4-section design
+- Section 1: Hero gradient banner with welcome, subject, level, date, session count
+- Section 2: 4 equal stat cards (2x2 mobile, 4x1 desktop) - all clickable
+- Section 3: Quick actions as compact pill buttons
+- Section 4: Balanced two-column grid (sessions+absences | chart+activities)
+- Moved activity form from inline to Sheet (side panel)
+- Reduced animation clutter (single page-level animation instead of per-item)
+- All stats cards navigate to corresponding views on click
+- All sessions clickable → navigate to attendance
+- Clean empty states for all sections
+- Lint passes (only pre-existing errors)
+- Server responds correctly
+
+Stage Summary:
+- Dashboard is now visually balanced and consistent
+- Activity form no longer causes layout jumps
+- All elements are clickable and navigate to appropriate views
+- Design is clean, professional, and mobile responsive

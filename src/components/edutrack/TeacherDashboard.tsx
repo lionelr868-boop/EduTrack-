@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useAppStore, ViewType } from '@/store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Select,
   SelectContent,
@@ -19,10 +21,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import {
   BookOpen,
   Clock,
@@ -34,7 +38,6 @@ import {
   ClipboardCheck,
   CalendarDays,
   Plus,
-  ChevronDown,
   GraduationCap,
   FileText,
   PenLine,
@@ -42,8 +45,9 @@ import {
   Activity,
   Loader2,
   Eye,
-  Zap,
   MessageCircle,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
 import {
   BarChart,
@@ -159,22 +163,26 @@ const statusConfig = {
     color: 'text-emerald-700',
     bgColor: 'bg-emerald-50 border-emerald-200',
     dotColor: 'bg-emerald-500',
-    icon: <CheckCircle2 className="h-4 w-4" />,
   },
   upcoming: {
     label: 'قادمة',
     color: 'text-sky-700',
     bgColor: 'bg-sky-50 border-sky-200',
     dotColor: 'bg-sky-500',
-    icon: <Clock className="h-4 w-4" />,
   },
   cancelled: {
     label: 'ملغاة',
     color: 'text-red-700',
     bgColor: 'bg-red-50 border-red-200',
     dotColor: 'bg-red-500',
-    icon: <XCircle className="h-4 w-4" />,
   },
+};
+
+// ─── Level Labels ──────────────────────────────────────────
+const levelLabels: Record<string, string> = {
+  PRIMARY: 'ابتدائي',
+  MIDDLE: 'متوسط',
+  SECONDARY: 'ثانوي',
 };
 
 // ─── Custom Tooltip ────────────────────────────────────────
@@ -208,48 +216,26 @@ function CustomTooltip({
   );
 }
 
-// ─── Animation Variants ────────────────────────────────────
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.4, ease: 'easeOut' },
-  },
-};
-
 // ─── Loading Skeleton ──────────────────────────────────────
 function DashboardSkeleton() {
   return (
     <div className="space-y-6" dir="rtl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <Skeleton className="h-8 w-48 mb-2" />
-          <Skeleton className="h-4 w-32" />
-        </div>
-        <Skeleton className="h-8 w-64" />
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <Skeleton className="h-36 rounded-xl" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-xl" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[1, 2, 3].map((i) => (
           <Skeleton key={i} className="h-28 rounded-xl" />
         ))}
       </div>
+      <Skeleton className="h-14 rounded-xl" />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Skeleton className="h-64 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
+        <div className="space-y-6">
+          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
+        <div className="space-y-6">
+          <Skeleton className="h-56 rounded-xl" />
+          <Skeleton className="h-48 rounded-xl" />
+        </div>
       </div>
     </div>
   );
@@ -268,7 +254,7 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
 
   // Activity form state
-  const [activityFormOpen, setActivityFormOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState('');
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [activityType, setActivityType] = useState('');
@@ -277,9 +263,6 @@ export default function TeacherDashboard() {
   const [activityGrade, setActivityGrade] = useState('');
   const [activityMaxGrade, setActivityMaxGrade] = useState('');
   const [submitting, setSubmitting] = useState(false);
-
-  // Supervised sections expandable
-  const [sectionsExpanded, setSectionsExpanded] = useState(true);
 
   const todayDate = new Date().toLocaleDateString('ar-DZ', {
     weekday: 'long',
@@ -372,15 +355,16 @@ export default function TeacherDashboard() {
       toast.success('تم إضافة النشاط بنجاح');
 
       // Reset form
+      setSelectedSectionId('');
       setSelectedStudentId('');
       setActivityType('');
       setActivityTitle('');
       setActivityDescription('');
       setActivityGrade('');
       setActivityMaxGrade('');
-      setActivityFormOpen(false);
 
-      // Refresh activities
+      // Close sheet & refresh activities
+      setSheetOpen(false);
       fetchRecentActivities();
     } catch (err) {
       console.error('Error submitting activity:', err);
@@ -432,765 +416,636 @@ export default function TeacherDashboard() {
     sectionsWithStudents,
   } = dashboardData;
 
+  // ─── Stats Config ────────────────────────────────────────
+  const statsCards = [
+    {
+      label: 'حضور الأسبوع',
+      value: `${stats.weeklyAttendanceRate}%`,
+      icon: <CheckCircle2 className="h-5 w-5" />,
+      color: 'emerald' as const,
+      bgColor: 'bg-emerald-50',
+      textColor: 'text-emerald-600',
+      iconBg: 'bg-emerald-100',
+      onClick: () => setCurrentView('teacher-attendance'),
+    },
+    {
+      label: 'حصص بدون حضور',
+      value: `${stats.sessionsWithoutAttendance}`,
+      icon: <ClipboardCheck className="h-5 w-5" />,
+      color: 'amber' as const,
+      bgColor: 'bg-amber-50',
+      textColor: 'text-amber-600',
+      iconBg: 'bg-amber-100',
+      onClick: () => setCurrentView('teacher-attendance'),
+    },
+    {
+      label: 'إجمالي التلاميذ',
+      value: `${stats.totalStudents}`,
+      icon: <Users className="h-5 w-5" />,
+      color: 'primary' as const,
+      bgColor: 'bg-edutrack-primary/5',
+      textColor: 'text-edutrack-primary',
+      iconBg: 'bg-edutrack-primary/10',
+      onClick: () => setCurrentView('teacher-students'),
+    },
+    {
+      label: 'أقسام مشرفة',
+      value: `${supervisedSections.length}`,
+      icon: <ShieldCheck className="h-5 w-5" />,
+      color: 'teal' as const,
+      bgColor: 'bg-teal-50',
+      textColor: 'text-teal-600',
+      iconBg: 'bg-teal-100',
+      onClick: () => setCurrentView('teacher-students'),
+    },
+  ];
+
+  // ─── Quick Actions ───────────────────────────────────────
+  const quickActions = [
+    {
+      label: 'تسجيل الحضور',
+      icon: <ClipboardCheck className="h-4 w-4" />,
+      view: 'teacher-attendance' as ViewType,
+      className: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200',
+    },
+    {
+      label: 'المراسلات',
+      icon: <MessageCircle className="h-4 w-4" />,
+      view: 'teacher-messages' as ViewType,
+      className: 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200',
+    },
+    {
+      label: 'تلاميذي',
+      icon: <GraduationCap className="h-4 w-4" />,
+      view: 'teacher-students' as ViewType,
+      className: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200',
+    },
+    {
+      label: 'إبلاغ غياب',
+      icon: <AlertCircle className="h-4 w-4" />,
+      view: 'teacher-absence-request' as ViewType,
+      className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200',
+    },
+  ];
+
   return (
     <motion.div
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
       className="space-y-6"
       dir="rtl"
     >
-      {/* ── Welcome Section ─────────────────────────────── */}
-      <motion.div
-        variants={itemVariants}
-        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
-      >
-        <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-edutrack-dark">
-            مرحباً، {user?.name?.split(' ')[0] || 'الأستاذ'} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            إليك ملخص نشاطك اليوم — مادة {teacher.subjectName}
-          </p>
-        </div>
-        <Badge
-          variant="outline"
-          className="w-fit text-sm py-1.5 px-3 border-edutrack-primary/20 text-edutrack-primary bg-edutrack-primary/5"
-        >
-          <CalendarDays className="h-3.5 w-3.5 ml-1.5" />
-          {todayDate}
-        </Badge>
-      </motion.div>
-
-      {/* ── Today's Sessions ─────────────────────────────── */}
-      <motion.div variants={itemVariants}>
-        <h2 className="text-lg font-bold text-edutrack-dark mb-3 flex items-center gap-2">
-          <BookOpen className="h-5 w-5 text-edutrack-primary" />
-          حصص اليوم
-          {todaySessions.length > 0 && (
-            <Badge variant="secondary" className="text-xs mr-1">
-              {todaySessions.length}
-            </Badge>
-          )}
-        </h2>
-        {todaySessions.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {todaySessions.map((session, index) => {
-              const status = statusConfig[session.status];
-              return (
-                <motion.div
-                  key={session.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{
-                    duration: 0.35,
-                    delay: 0.1 + index * 0.08,
-                    ease: 'easeOut',
-                  }}
-                >
-                  <Card
-                    className={`border overflow-hidden hover:shadow-md transition-all duration-300 group cursor-pointer ${status.bgColor}`}
-                  >
-                    <div
-                      className={`h-1 ${
-                        session.status === 'done'
-                          ? 'bg-emerald-500'
-                          : session.status === 'upcoming'
-                            ? 'bg-sky-500'
-                            : 'bg-red-500'
-                      }`}
-                    />
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-2 h-2 rounded-full ${status.dotColor}`}
-                          />
-                          <h3 className="font-bold text-edutrack-dark">
-                            {session.subjectName}
-                          </h3>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={`${status.bgColor} ${status.color} border text-[10px] gap-1 px-1.5 py-0.5`}
-                        >
-                          {status.icon}
-                          {status.label}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span className="font-inter">
-                          {session.startTime} - {session.endTime}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                        <Users className="h-3.5 w-3.5" />
-                        <span>
-                          {session.sectionName} {session.yearName}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
+      {/* ═══════════════════════════════════════════════════════
+          Section 1: Welcome Header (Hero Banner)
+          ═══════════════════════════════════════════════════════ */}
+      <Card className="overflow-hidden border-0 rounded-xl">
+        <div className="bg-gradient-to-l from-edutrack-primary via-edutrack-dark to-edutrack-dark p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <Avatar className="h-14 w-14 border-2 border-white/20">
+                <AvatarFallback className="bg-white/20 text-white text-lg font-bold">
+                  {user?.name
+                    ?.split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .slice(0, 2) || 'أ'}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-2xl lg:text-3xl font-bold text-white">
+                  مرحباً، {user?.name?.split(' ')[0] || 'الأستاذ'}
+                </h1>
+                <p className="text-sm text-white/70 mt-1">
+                  إليك ملخص نشاطك اليوم
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="bg-white/15 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" />
+                {teacher.subjectName}
+              </Badge>
+              <Badge className="bg-white/15 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm gap-1.5">
+                <GraduationCap className="h-3.5 w-3.5" />
+                {levelLabels[teacher.level] || teacher.level}
+              </Badge>
+              <Badge className="bg-white/15 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm gap-1.5">
+                <CalendarDays className="h-3.5 w-3.5" />
+                {todayDate}
+              </Badge>
+              <Badge className="bg-white/25 text-white border-white/30 hover:bg-white/30 backdrop-blur-sm gap-1.5 font-semibold">
+                <Clock className="h-3.5 w-3.5" />
+                عدد الحصص اليوم: {todaySessions.length}
+              </Badge>
+            </div>
           </div>
-        ) : (
-          <Card className="border-dashed">
-            <CardContent className="p-8 text-center">
-              <BookOpen className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-              <p className="text-sm text-muted-foreground">
-                لا توجد حصص مجدولة لهذا اليوم
+        </div>
+      </Card>
+
+      {/* ═══════════════════════════════════════════════════════
+          Section 2: Stats Row (4 equal cards)
+          ═══════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statsCards.map((stat) => (
+          <Card
+            key={stat.label}
+            className="border cursor-pointer hover:shadow-md transition-all duration-200"
+            onClick={stat.onClick}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-2.5 rounded-xl ${stat.iconBg}`}>
+                  <span className={stat.textColor}>{stat.icon}</span>
+                </div>
+              </div>
+              <p className={`text-2xl font-bold font-inter ${stat.textColor}`}>
+                {stat.value}
               </p>
+              <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
             </CardContent>
           </Card>
-        )}
-      </motion.div>
+        ))}
+      </div>
 
-      {/* ── Quick Stats ──────────────────────────────────── */}
-      <motion.div variants={itemVariants}>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Weekly Attendance */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.3 }}
+      {/* ═══════════════════════════════════════════════════════
+          Section 3: Quick Actions (horizontal strip)
+          ═══════════════════════════════════════════════════════ */}
+      <div className="flex flex-wrap gap-3">
+        {quickActions.map((action) => (
+          <Button
+            key={action.view}
+            variant="outline"
+            className={`h-10 rounded-full px-4 gap-2 text-sm font-semibold border ${action.className}`}
+            onClick={() => setCurrentView(action.view)}
           >
-            <Card className="border border-emerald-200 hover:shadow-md transition-all duration-300">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      حضور هذا الأسبوع
-                    </p>
-                    <p className="text-3xl font-bold text-emerald-600 font-inter">
-                      {stats.weeklyAttendanceRate}%
-                    </p>
-                    <p className="text-xs text-emerald-500 mt-1">
-                      {stats.weeklyAttendanceRate >= 90
-                        ? 'معدل ممتاز'
-                        : stats.weeklyAttendanceRate >= 80
-                          ? 'معدل جيد'
-                          : stats.weeklyAttendanceRate > 0
-                            ? 'يحتاج تحسين'
-                            : 'لا توجد بيانات'}
-                    </p>
-                  </div>
-                  <div className="bg-emerald-50 p-3 rounded-xl">
-                    <CheckCircle2 className="h-6 w-6 text-emerald-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+            {action.icon}
+            {action.label}
+          </Button>
+        ))}
+      </div>
 
-          {/* Sessions Without Attendance */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
-          >
-            <Card className="border border-amber-200 hover:shadow-md transition-all duration-300">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      حصص لم يُسجّل الحضور
-                    </p>
-                    <p className="text-3xl font-bold text-amber-600 font-inter">
-                      {stats.sessionsWithoutAttendance}
-                    </p>
-                    <p className="text-xs text-amber-500 mt-1">
-                      {stats.sessionsWithoutAttendance > 0
-                        ? 'تحتاج تسجيل'
-                        : 'كل الحصص مسجّلة'}
-                    </p>
-                  </div>
-                  <div className="bg-amber-50 p-3 rounded-xl">
-                    <ClipboardCheck className="h-6 w-6 text-amber-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* Student Count */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.5 }}
-          >
-            <Card className="border border-edutrack-primary/20 hover:shadow-md transition-all duration-300">
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">
-                      إجمالي الطلاب
-                    </p>
-                    <p className="text-3xl font-bold text-edutrack-primary font-inter">
-                      {stats.totalStudents}
-                    </p>
-                    <p className="text-xs text-edutrack-primary/70 mt-1">
-                      في الأقسام المشرفة
-                    </p>
-                  </div>
-                  <div className="bg-edutrack-primary/10 p-3 rounded-xl">
-                    <Users className="h-6 w-6 text-edutrack-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </div>
-      </motion.div>
-
-      {/* ── Quick Actions ──────────────────────────────────── */}
-      <motion.div variants={itemVariants}>
-        <h2 className="text-lg font-bold text-edutrack-dark mb-3 flex items-center gap-2">
-          <Zap className="h-5 w-5 text-edutrack-primary" />
-          إجراءات سريعة
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'تسجيل الحضور', icon: <ClipboardCheck className="h-5 w-5" />, view: 'teacher-attendance' as ViewType, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-            { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'teacher-messages' as ViewType, color: 'bg-purple-50 text-purple-700 border-purple-200' },
-            { label: 'تلاميذي', icon: <GraduationCap className="h-5 w-5" />, view: 'teacher-students' as ViewType, color: 'bg-sky-50 text-sky-700 border-sky-200' },
-            { label: 'إبلاغ غياب', icon: <AlertCircle className="h-5 w-5" />, view: 'teacher-absence-request' as ViewType, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-          ].map((action, index) => (
-            <motion.div
-              key={action.view}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5 + index * 0.1 }}
-            >
-              <Card
-                className={`border cursor-pointer hover:shadow-md transition-all duration-300 ${action.color}`}
-                onClick={() => setCurrentView(action.view)}
-              >
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-lg bg-white/60 flex items-center justify-center">
-                    {action.icon}
-                  </div>
-                  <span className="text-sm font-semibold">{action.label}</span>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-
-      {/* ── Main Content Grid ────────────────────────────── */}
+      {/* ═══════════════════════════════════════════════════════
+          Section 4: Two-column grid (balanced)
+          ═══════════════════════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* ── Left Column ──────────────────────────────── */}
         <div className="space-y-6">
-          {/* ── My Supervised Sections ──────────────────── */}
-          <motion.div variants={itemVariants}>
-            <Collapsible
-              open={sectionsExpanded}
-              onOpenChange={setSectionsExpanded}
-            >
-              <Card className="shadow-sm hover:shadow-md transition-shadow">
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="pb-3 cursor-pointer hover:bg-muted/30 transition-colors rounded-t-lg">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                        <GraduationCap className="h-5 w-5 text-edutrack-primary" />
-                        أقسامي المشرفة
-                        <Badge variant="secondary" className="text-xs">
-                          {supervisedSections.length}
-                        </Badge>
-                      </CardTitle>
-                      <motion.div
-                        animate={{ rotate: sectionsExpanded ? 180 : 0 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                      </motion.div>
-                    </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0 pb-4">
-                    {supervisedSections.length > 0 ? (
-                      <ScrollArea className="max-h-64">
-                        <div className="space-y-2">
-                          {supervisedSections.map((section, index) => (
-                            <motion.div
-                              key={section.id}
-                              initial={{ opacity: 0, x: -20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{
-                                duration: 0.3,
-                                delay: index * 0.05,
-                              }}
-                              className="flex items-center justify-between p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors"
-                            >
-                              <div>
-                                <p className="text-sm font-semibold text-edutrack-dark">
-                                  {section.name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {section.yearName} — {section.level}
-                                </p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                                <span className="text-sm font-medium text-edutrack-primary font-inter">
-                                  {section.studentCount}
-                                </span>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-                      </ScrollArea>
-                    ) : (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        لا توجد أقسام مشرفة حالياً
-                      </p>
-                    )}
-                  </CardContent>
-                </CollapsibleContent>
-              </Card>
-            </Collapsible>
-          </motion.div>
-
-          {/* ── Student Activity Form ───────────────────── */}
-          <motion.div variants={itemVariants}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow border-edutrack-primary/20">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                    <Plus className="h-5 w-5 text-edutrack-primary" />
-                    إضافة نشاط طالب
-                  </CardTitle>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setActivityFormOpen(!activityFormOpen)}
-                    className="gap-1 text-xs"
-                  >
-                    <motion.div
-                      animate={{ rotate: activityFormOpen ? 45 : 0 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </motion.div>
-                    {activityFormOpen ? 'إغلاق' : 'فتح النموذج'}
-                  </Button>
-                </div>
-              </CardHeader>
-              <AnimatePresence>
-                {activityFormOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3, ease: 'easeInOut' }}
-                  >
-                    <CardContent className="pt-0 pb-4">
-                      <div className="space-y-4">
-                        {/* Section Select */}
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            القسم <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-                            value={selectedSectionId}
-                            onValueChange={(value) => {
-                              setSelectedSectionId(value);
-                              setSelectedStudentId('');
-                            }}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="اختر القسم" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {sectionsWithStudents.map((section) => (
-                                <SelectItem
-                                  key={section.id}
-                                  value={section.id}
-                                >
-                                  {section.name} — {section.yearName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Student Select */}
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            الطالب <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-                            value={selectedStudentId}
-                            onValueChange={setSelectedStudentId}
-                            disabled={!selectedSectionId}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue
-                                placeholder={
-                                  selectedSectionId
-                                    ? 'اختر الطالب'
-                                    : 'اختر القسم أولاً'
-                                }
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {getStudentsForSection().map((student) => (
-                                <SelectItem
-                                  key={student.id}
-                                  value={student.id}
-                                >
-                                  {student.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Activity Type Select */}
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            نوع النشاط <span className="text-red-500">*</span>
-                          </Label>
-                          <Select
-                            value={activityType}
-                            onValueChange={setActivityType}
-                          >
-                            <SelectTrigger className="w-full">
-                              <SelectValue placeholder="اختر نوع النشاط" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.entries(activityTypeLabels).map(
-                                ([key, label]) => (
-                                  <SelectItem key={key} value={key}>
-                                    <div className="flex items-center gap-2">
-                                      {activityTypeIcons[key]}
-                                      {label}
-                                    </div>
-                                  </SelectItem>
-                                )
-                              )}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        {/* Title */}
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            العنوان <span className="text-red-500">*</span>
-                          </Label>
-                          <Input
-                            value={activityTitle}
-                            onChange={(e) => setActivityTitle(e.target.value)}
-                            placeholder="مثال: اختبار الفصل الأول"
-                            className="text-right"
-                          />
-                        </div>
-
-                        {/* Description */}
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">الوصف</Label>
-                          <Textarea
-                            value={activityDescription}
-                            onChange={(e) =>
-                              setActivityDescription(e.target.value)
-                            }
-                            placeholder="أضف وصفاً اختيارياً..."
-                            className="text-right min-h-20"
-                          />
-                        </div>
-
-                        {/* Grades */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label className="text-sm font-medium">
-                              العلامة
-                            </Label>
-                            <Input
-                              type="number"
-                              value={activityGrade}
-                              onChange={(e) => setActivityGrade(e.target.value)}
-                              placeholder="0"
-                              className="font-inter text-right"
-                              min="0"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-sm font-medium">
-                              العلامة القصوى
-                            </Label>
-                            <Input
-                              type="number"
-                              value={activityMaxGrade}
-                              onChange={(e) =>
-                                setActivityMaxGrade(e.target.value)
-                              }
-                              placeholder="20"
-                              className="font-inter text-right"
-                              min="0"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Submit Button */}
-                        <Button
-                          onClick={handleActivitySubmit}
-                          disabled={submitting}
-                          className="w-full bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2"
-                        >
-                          {submitting ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              جارٍ الإضافة...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="h-4 w-4" />
-                              إضافة النشاط
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </Card>
-          </motion.div>
-
-          {/* ── Recent Absence Alerts ───────────────────── */}
-          <motion.div variants={itemVariants}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
+          {/* ── Today's Sessions ──────────────────────── */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5 text-orange-500" />
-                  تنبيهات الغياب الأخيرة
-                  {recentAbsences.length > 0 && (
-                    <Badge variant="destructive" className="text-xs">
-                      {recentAbsences.length}
+                  <BookOpen className="h-5 w-5 text-edutrack-primary" />
+                  حصص اليوم
+                  {todaySessions.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {todaySessions.length}
                     </Badge>
                   )}
                 </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {recentAbsences.length > 0 ? (
-                  <ScrollArea className="max-h-64">
-                    <div className="space-y-1">
-                      {recentAbsences.map((alert, index) => (
-                        <motion.div
-                          key={alert.id}
-                          initial={{ opacity: 0, x: 30 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{
-                            duration: 0.3,
-                            delay: 0.5 + index * 0.05,
-                          }}
-                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-red-50/50 transition-colors group"
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {todaySessions.length > 0 ? (
+                <ScrollArea className="max-h-72">
+                  <div className="space-y-2">
+                    {todaySessions.map((session) => {
+                      const status = statusConfig[session.status];
+                      return (
+                        <div
+                          key={session.id}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => setCurrentView('teacher-attendance')}
                         >
-                          <div className="flex-shrink-0 mt-0.5">
-                            <div className="w-2 h-2 rounded-full bg-red-500" />
+                          <div className="flex flex-col items-center min-w-[48px]">
+                            <span className="text-xs font-bold font-inter text-edutrack-dark">
+                              {session.startTime}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground font-inter">
+                              {session.endTime}
+                            </span>
                           </div>
+                          <Separator orientation="vertical" className="h-10" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm text-edutrack-dark leading-relaxed">
-                              <span className="font-semibold">
-                                {alert.studentName}
-                              </span>{' '}
-                              غاب عن حصة {alert.subjectName}
+                            <p className="text-sm font-semibold text-edutrack-dark truncate">
+                              {session.subjectName}
                             </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {formatDateArabic(alert.date)}
+                            <p className="text-xs text-muted-foreground">
+                              {session.sectionName} {session.yearName}
                             </p>
                           </div>
-                          <div className="flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <XCircle className="h-4 w-4 text-red-500" />
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center py-6">
-                    <CheckCircle2 className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      لا توجد غيابات حديثة
-                    </p>
+                          <Badge
+                            variant="outline"
+                            className={`${status.bgColor} ${status.color} border text-[10px] gap-1 px-2 py-0.5 shrink-0`}
+                          >
+                            <div
+                              className={`w-1.5 h-1.5 rounded-full ${status.dotColor}`}
+                            />
+                            {status.label}
+                          </Badge>
+                        </div>
+                      );
+                    })}
                   </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    لا توجد حصص مجدولة لهذا اليوم
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* ── Absence Alerts ────────────────────────── */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-orange-500" />
+                تنبيهات الغياب
+                {recentAbsences.length > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    {recentAbsences.length}
+                  </Badge>
                 )}
-              </CardContent>
-            </Card>
-          </motion.div>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {recentAbsences.length > 0 ? (
+                <ScrollArea className="max-h-64">
+                  <div className="space-y-1">
+                    {recentAbsences.map((alert) => (
+                      <div
+                        key={alert.id}
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-red-50/50 transition-colors cursor-pointer"
+                        onClick={() => setCurrentView('teacher-students')}
+                      >
+                        <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-edutrack-dark">
+                            <span className="font-semibold">
+                              {alert.studentName}
+                            </span>{' '}
+                            غاب عن حصة {alert.subjectName}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formatDateArabic(alert.date)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">
+                    لا توجد غيابات حديثة
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
 
         {/* ── Right Column ─────────────────────────────── */}
         <div className="space-y-6">
-          {/* ── Weekly Attendance Chart ──────────────────── */}
-          <motion.div variants={itemVariants}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5 text-edutrack-primary" />
-                  نسبة الحضور الأسبوعية
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">هذا الأسبوع</p>
-              </CardHeader>
-              <CardContent>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={weeklyAttendanceChart}
-                      margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+          {/* ── Weekly Attendance Chart ──────────────── */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-edutrack-primary" />
+                نسبة الحضور الأسبوعية
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">هذا الأسبوع</p>
+            </CardHeader>
+            <CardContent>
+              <div className="h-52">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={weeklyAttendanceChart}
+                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="#f0f0f0"
+                    />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 11 }}
+                      stroke="#94a3b8"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11 }}
+                      stroke="#94a3b8"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="rate"
+                      name="نسبة الحضور"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={40}
                     >
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        stroke="#f0f0f0"
-                      />
-                      <XAxis
-                        dataKey="day"
-                        tick={{ fontSize: 11 }}
-                        stroke="#94a3b8"
-                      />
-                      <YAxis
-                        tick={{ fontSize: 11 }}
-                        stroke="#94a3b8"
-                        domain={[0, 100]}
-                        tickFormatter={(value) => `${value}%`}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar
-                        dataKey="rate"
-                        name="نسبة الحضور"
-                        radius={[6, 6, 0, 0]}
-                        maxBarSize={40}
-                      >
-                        {weeklyAttendanceChart.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={
-                              entry.rate >= 90
-                                ? '#10B981'
-                                : entry.rate >= 80
-                                  ? '#F97316'
-                                  : entry.rate > 0
-                                    ? '#EF4444'
-                                    : '#E2E8F0'
-                            }
-                          />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
-          {/* ── Recent Student Activities ───────────────── */}
-          <motion.div variants={itemVariants}>
-            <Card className="shadow-sm hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-edutrack-primary" />
-                    آخر النشاطات
-                  </CardTitle>
-                  {recentActivities.length > 0 && (
-                    <Badge
-                      variant="outline"
-                      className="text-xs border-edutrack-primary/20 text-edutrack-primary"
-                    >
-                      {recentActivities.length} نشاط
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                {recentActivities.length > 0 ? (
-                  <ScrollArea className="max-h-96">
-                    <div className="space-y-2">
-                      {recentActivities.map((activity, index) => (
-                        <motion.div
-                          key={activity.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{
-                            duration: 0.3,
-                            delay: index * 0.05,
-                          }}
-                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors group"
-                        >
-                          <div
-                            className={`flex-shrink-0 p-1.5 rounded-lg ${
-                              activityTypeColors[activity.type] ||
-                              'bg-gray-50 text-gray-700 border border-gray-200'
-                            }`}
-                          >
-                            {activityTypeIcons[activity.type] || (
-                              <FileText className="h-4 w-4" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                              <p className="text-sm font-semibold text-edutrack-dark truncate">
-                                {activity.title}
-                              </p>
-                              <Badge
-                                variant="outline"
-                                className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                                  activityTypeColors[activity.type] ||
-                                  'bg-gray-50 text-gray-700 border-gray-200'
-                                }`}
-                              >
-                                {activityTypeLabels[activity.type] ||
-                                  activity.type}
-                              </Badge>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              {activity.student?.name || '—'} —{' '}
-                              {activity.section?.name || '—'}
-                            </p>
-                            {activity.grade !== null &&
-                              activity.maxGrade !== null && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <span className="text-xs font-bold font-inter text-edutrack-primary">
-                                    {activity.grade}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground font-inter">
-                                    / {activity.maxGrade}
-                                  </span>
-                                </div>
-                              )}
-                          </div>
-                          <div className="flex-shrink-0">
-                            <p className="text-[10px] text-muted-foreground whitespace-nowrap">
-                              {formatDateArabic(activity.createdAt)}
-                            </p>
-                          </div>
-                        </motion.div>
+                      {weeklyAttendanceChart.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={
+                            entry.rate >= 90
+                              ? '#10B981'
+                              : entry.rate >= 80
+                                ? '#F97316'
+                                : entry.rate > 0
+                                  ? '#EF4444'
+                                  : '#E2E8F0'
+                          }
+                        />
                       ))}
-                    </div>
-                  </ScrollArea>
-                ) : (
-                  <div className="text-center py-6">
-                    <FileText className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      لم تُضاف أي نشاطات بعد
-                    </p>
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* ── Recent Activities ────────────────────── */}
+          <Card className="shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-edutrack-primary" />
+                  آخر الأنشطة
+                </CardTitle>
+                <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+                  <SheetTrigger asChild>
                     <Button
-                      variant="link"
+                      variant="outline"
                       size="sm"
-                      onClick={() => setActivityFormOpen(true)}
-                      className="text-edutrack-primary mt-1"
+                      className="gap-1.5 text-xs h-8 border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
                     >
-                      أضف أول نشاط
+                      <Plus className="h-3.5 w-3.5" />
+                      إضافة نشاط
                     </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto" dir="rtl">
+                    <SheetHeader className="mb-4">
+                      <SheetTitle className="text-right flex items-center gap-2 text-edutrack-dark">
+                        <Sparkles className="h-5 w-5 text-edutrack-primary" />
+                        إضافة نشاط جديد
+                      </SheetTitle>
+                    </SheetHeader>
+                    <div className="space-y-4 px-4 pb-6">
+                      {/* Section Select */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">
+                          القسم <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={selectedSectionId}
+                          onValueChange={(value) => {
+                            setSelectedSectionId(value);
+                            setSelectedStudentId('');
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="اختر القسم" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {sectionsWithStudents.map((section) => (
+                              <SelectItem
+                                key={section.id}
+                                value={section.id}
+                              >
+                                {section.name} — {section.yearName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Student Select */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">
+                          الطالب <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={selectedStudentId}
+                          onValueChange={setSelectedStudentId}
+                          disabled={!selectedSectionId}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue
+                              placeholder={
+                                selectedSectionId
+                                  ? 'اختر الطالب'
+                                  : 'اختر القسم أولاً'
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getStudentsForSection().map((student) => (
+                              <SelectItem
+                                key={student.id}
+                                value={student.id}
+                              >
+                                {student.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Activity Type Select */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">
+                          نوع النشاط <span className="text-red-500">*</span>
+                        </Label>
+                        <Select
+                          value={activityType}
+                          onValueChange={setActivityType}
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="اختر نوع النشاط" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(activityTypeLabels).map(
+                              ([key, label]) => (
+                                <SelectItem key={key} value={key}>
+                                  <div className="flex items-center gap-2">
+                                    {activityTypeIcons[key]}
+                                    {label}
+                                  </div>
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Title */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">
+                          العنوان <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          value={activityTitle}
+                          onChange={(e) => setActivityTitle(e.target.value)}
+                          placeholder="مثال: اختبار الفصل الأول"
+                          className="text-right"
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-1.5">
+                        <Label className="text-sm font-medium">الوصف</Label>
+                        <Textarea
+                          value={activityDescription}
+                          onChange={(e) =>
+                            setActivityDescription(e.target.value)
+                          }
+                          placeholder="أضف وصفاً اختيارياً..."
+                          className="text-right min-h-20"
+                        />
+                      </div>
+
+                      {/* Grades */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium">
+                            العلامة
+                          </Label>
+                          <Input
+                            type="number"
+                            value={activityGrade}
+                            onChange={(e) => setActivityGrade(e.target.value)}
+                            placeholder="0"
+                            className="font-inter text-right"
+                            min="0"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-sm font-medium">
+                            العلامة القصوى
+                          </Label>
+                          <Input
+                            type="number"
+                            value={activityMaxGrade}
+                            onChange={(e) =>
+                              setActivityMaxGrade(e.target.value)
+                            }
+                            placeholder="20"
+                            className="font-inter text-right"
+                            min="0"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Submit Button */}
+                      <Button
+                        onClick={handleActivitySubmit}
+                        disabled={submitting}
+                        className="w-full bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2"
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جارٍ الإضافة...
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4" />
+                            إضافة النشاط
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {recentActivities.length > 0 ? (
+                <ScrollArea className="max-h-64">
+                  <div className="space-y-2">
+                    {recentActivities.map((activity) => (
+                      <div
+                        key={activity.id}
+                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors"
+                      >
+                        <div
+                          className={`flex-shrink-0 p-1.5 rounded-lg ${
+                            activityTypeColors[activity.type] ||
+                            'bg-gray-50 text-gray-700 border border-gray-200'
+                          }`}
+                        >
+                          {activityTypeIcons[activity.type] || (
+                            <FileText className="h-4 w-4" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <p className="text-sm font-semibold text-edutrack-dark truncate">
+                              {activity.title}
+                            </p>
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] px-1.5 py-0 shrink-0 ${
+                                activityTypeColors[activity.type] ||
+                                'bg-gray-50 text-gray-700 border-gray-200'
+                              }`}
+                            >
+                              {activityTypeLabels[activity.type] ||
+                                activity.type}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {activity.student?.name || '—'} —{' '}
+                            {activity.section?.name || '—'}
+                          </p>
+                          {activity.grade !== null &&
+                            activity.maxGrade !== null && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <span className="text-xs font-bold font-inter text-edutrack-primary">
+                                  {activity.grade}
+                                </span>
+                                <span className="text-xs text-muted-foreground font-inter">
+                                  / {activity.maxGrade}
+                                </span>
+                              </div>
+                            )}
+                        </div>
+                        <div className="flex-shrink-0">
+                          <p className="text-[10px] text-muted-foreground whitespace-nowrap">
+                            {formatDateArabic(activity.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          </motion.div>
+                </ScrollArea>
+              ) : (
+                <div className="text-center py-8">
+                  <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    لم تُضاف أي أنشطة بعد
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
+                    onClick={() => setSheetOpen(true)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    أضف أول نشاط
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </motion.div>
