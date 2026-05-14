@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore, ViewType } from '@/store/useAppStore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  AlertCircle,
   Users,
   ClipboardCheck,
   CalendarDays,
@@ -41,6 +42,8 @@ import {
   Activity,
   Loader2,
   Eye,
+  Zap,
+  MessageCircle,
 } from 'lucide-react';
 import {
   BarChart,
@@ -255,6 +258,7 @@ function DashboardSkeleton() {
 // ─── Main Component ────────────────────────────────────────
 export default function TeacherDashboard() {
   const user = useAppStore((s) => s.user);
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
 
   // Dashboard data state
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(
@@ -638,6 +642,41 @@ export default function TeacherDashboard() {
               </CardContent>
             </Card>
           </motion.div>
+        </div>
+      </motion.div>
+
+      {/* ── Quick Actions ──────────────────────────────────── */}
+      <motion.div variants={itemVariants}>
+        <h2 className="text-lg font-bold text-edutrack-dark mb-3 flex items-center gap-2">
+          <Zap className="h-5 w-5 text-edutrack-primary" />
+          إجراءات سريعة
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: 'تسجيل الحضور', icon: <ClipboardCheck className="h-5 w-5" />, view: 'teacher-attendance' as ViewType, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+            { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'teacher-messages' as ViewType, color: 'bg-purple-50 text-purple-700 border-purple-200' },
+            { label: 'تلاميذي', icon: <GraduationCap className="h-5 w-5" />, view: 'teacher-students' as ViewType, color: 'bg-sky-50 text-sky-700 border-sky-200' },
+            { label: 'إبلاغ غياب', icon: <AlertCircle className="h-5 w-5" />, view: 'teacher-absence-request' as ViewType, color: 'bg-amber-50 text-amber-700 border-amber-200' },
+          ].map((action, index) => (
+            <motion.div
+              key={action.view}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 + index * 0.1 }}
+            >
+              <Card
+                className={`border cursor-pointer hover:shadow-md transition-all duration-300 ${action.color}`}
+                onClick={() => setCurrentView(action.view)}
+              >
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-lg bg-white/60 flex items-center justify-center">
+                    {action.icon}
+                  </div>
+                  <span className="text-sm font-semibold">{action.label}</span>
+                </CardContent>
+              </Card>
+            </motion.div>
+          ))}
         </div>
       </motion.div>
 

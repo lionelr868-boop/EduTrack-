@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore, ViewType } from '@/store/useAppStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,10 @@ import {
   Activity,
   Settings,
   Loader2,
+  ClipboardCheck,
+  MessageCircle,
+  X,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -37,6 +41,8 @@ const typeConfig: Record<string, { label: string; color: string; bgColor: string
   ACTIVITY: { label: 'نشاط', color: 'text-teal-600', bgColor: 'bg-teal-50', icon: <Activity className="h-5 w-5 text-teal-500" /> },
   SYSTEM: { label: 'نظام', color: 'text-gray-600', bgColor: 'bg-gray-50', icon: <Settings className="h-5 w-5 text-gray-500" /> },
   GENERAL: { label: 'عام', color: 'text-sky-600', bgColor: 'bg-sky-50', icon: <Info className="h-5 w-5 text-sky-500" /> },
+  ATTENDANCE: { label: 'حضور', color: 'text-teal-600', bgColor: 'bg-teal-50', icon: <ClipboardCheck className="h-5 w-5 text-teal-500" /> },
+  MESSAGE: { label: 'رسالة', color: 'text-purple-600', bgColor: 'bg-purple-50', icon: <MessageCircle className="h-5 w-5 text-purple-500" /> },
 };
 
 function getTypeConfig(type: string) {
@@ -75,14 +81,47 @@ function formatRelativeTime(dateStr: string): string {
   return date.toLocaleDateString('ar-DZ');
 }
 
+// ─── Helper: Get action view based on notification type and user role ──
+function getActionView(type: string, role: string): string | null {
+  switch (type) {
+    case 'ABSENCE':
+      if (role === 'TEACHER') return 'teacher-attendance';
+      if (role === 'DIRECTOR') return 'director-absences';
+      if (role === 'PARENT') return 'parent-absences';
+      return null;
+    case 'ATTENDANCE':
+      if (role === 'TEACHER') return 'teacher-attendance';
+      if (role === 'DIRECTOR') return 'director-absences';
+      return null;
+    case 'MESSAGE':
+      if (role === 'TEACHER') return 'teacher-messages';
+      if (role === 'DIRECTOR') return 'director-messages';
+      if (role === 'PARENT') return 'parent-messages';
+      return null;
+    default:
+      return null;
+  }
+}
+
+function getActionLabel(type: string): string | null {
+  switch (type) {
+    case 'ABSENCE': return 'عرض التفاصيل';
+    case 'ATTENDANCE': return 'عرض الكشف';
+    case 'MESSAGE': return 'فتح المحادثة';
+    default: return null;
+  }
+}
+
 // ─── Main Component ─────────────────────────────────────────
 export default function NotificationsView() {
   const user = useAppStore((s) => s.user);
+  const setCurrentView = useAppStore((s) => s.setCurrentView);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -111,6 +150,14 @@ export default function NotificationsView() {
 
   useEffect(() => {
     fetchNotifications(1);
+  }, [fetchNotifications]);
+
+  // Auto-refresh every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchNotifications(1);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [fetchNotifications]);
 
   const markAsRead = async (notificationId: string) => {
@@ -145,6 +192,43 @@ export default function NotificationsView() {
       toast.success('تم تعليم الكل كمقروء');
     } catch {
       toast.error('حدث خطأ أثناء تحديث الإشعارات');
+    }
+  };
+
+  const deleteNotification = async (notificationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeletingId(notificationId);
+
+    // Optimistic removal
+    const previousNotifications = notifications;
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    setTotalCount(prev => prev - 1);
+
+    try {
+      const res = await fetch(`/api/notifications/${notificationId}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        toast.success('تم حذف الإشعار');
+      } else {
+        throw new Error('Delete failed');
+      }
+    } catch {
+      toast.error('حدث خطأ أثناء حذف الإشعار');
+      // Revert on error
+      setNotifications(previousNotifications);
+      setTotalCount(prev => prev + 1);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleActionClick = (type: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.role) return;
+    const view = getActionView(type, user.role);
+    if (view) {
+      setCurrentView(view as ViewType);
     }
   };
 
@@ -263,6 +347,7 @@ export default function NotificationsView() {
                   <AnimatePresence>
                     {group.items.map((notification, index) => {
                       const type = getTypeConfig(notification.type);
+                      const actionLabel = getActionLabel(notification.type);
                       return (
                         <motion.div
                           key={notification.id}
@@ -272,7 +357,7 @@ export default function NotificationsView() {
                           transition={{ delay: index * 0.03, duration: 0.3 }}
                         >
                           <Card
-                            className={`border shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md ${
+                            className={`border shadow-sm cursor-pointer transition-all duration-300 hover:shadow-md group relative ${
                               notification.read
                                 ? 'bg-white hover:bg-gray-50/50'
                                 : 'bg-edutrack-primary/[0.03] shadow-md border-r-4 border-r-edutrack-primary'
@@ -303,17 +388,45 @@ export default function NotificationsView() {
                                     }`}>
                                       {notification.message}
                                     </p>
-                                    {!notification.read && (
-                                      <div className="h-2.5 w-2.5 rounded-full bg-edutrack-primary flex-shrink-0 mt-1.5" />
-                                    )}
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      {!notification.read && (
+                                        <div className="h-2.5 w-2.5 rounded-full bg-edutrack-primary mt-1.5" />
+                                      )}
+                                      {/* Delete Button */}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                                        onClick={(e) => deleteNotification(notification.id, e)}
+                                        disabled={deletingId === notification.id}
+                                      >
+                                        {deletingId === notification.id ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <X className="h-3.5 w-3.5" />
+                                        )}
+                                      </Button>
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-2 mt-2">
+                                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                                     <Badge variant="outline" className={`${type.bgColor} ${type.color} border text-[10px] px-1.5 py-0`}>
                                       {type.label}
                                     </Badge>
                                     <span className="text-[10px] text-muted-foreground">
                                       {formatRelativeTime(notification.createdAt)}
                                     </span>
+                                    {/* Action Button */}
+                                    {actionLabel && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 text-[10px] px-2 text-edutrack-primary hover:text-edutrack-primary/80 hover:bg-edutrack-primary/10 gap-1 font-medium"
+                                        onClick={(e) => handleActionClick(notification.type, e)}
+                                      >
+                                        <ExternalLink className="h-3 w-3" />
+                                        {actionLabel}
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               </div>

@@ -32,15 +32,16 @@ model Institution {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  users     User[]
-  students  Student[]
-  teachers  Teacher[]
-  sessions  Session[]
-  invoices  Invoice[]
-  reports   Report[]
-  subjects  Subject[]
-  years     Year[]
-  sections  Section[]
+  users         User[]
+  students      Student[]
+  teachers      Teacher[]
+  sessions      Session[]
+  invoices      Invoice[]
+  reports       Report[]
+  subjects      Subject[]
+  years         Year[]
+  sections      Section[]
+  conversations Conversation[]
 }
 
 model User {
@@ -53,10 +54,12 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  institution   Institution @relation(fields: [institutionId], references: [id])
-  notifications Notification[]
-  teacher       Teacher?
-  parent        Parent?
+  institution            Institution              @relation(fields: [institutionId], references: [id])
+  notifications          Notification[]
+  teacher                Teacher?
+  parent                 Parent?
+  conversationParticipants ConversationParticipant[]
+  sentMessages           Message[]
 }
 
 model Subject {
@@ -291,4 +294,41 @@ model Pricing {
   institutionId String
 
   subject Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id             String   @id @default(cuid())
+  type           String   @default("DIRECT") // DIRECT, GROUP
+  institutionId  String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  institution Institution     @relation(fields: [institutionId], references: [id])
+  participants ConversationParticipant[]
+  messages    Message[]
+}
+
+model ConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  type           String   @default("TEXT") // TEXT, SYSTEM
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
 }

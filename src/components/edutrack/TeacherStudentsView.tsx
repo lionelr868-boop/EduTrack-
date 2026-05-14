@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store/useAppStore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,18 @@ import {
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   Search,
   GraduationCap,
   AlertTriangle,
@@ -25,82 +37,70 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Filter,
+  Users,
+  Phone,
+  MapPin,
   Loader2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
-// ─── Demo Data ──────────────────────────────────────────────
-interface StudentData {
+// ─── Types ──────────────────────────────────────────────────
+interface StudentAttendance {
+  attended: number;
+  absent: number;
+  total: number;
+  rate: number;
+}
+
+interface StudentSection {
+  id: string;
+  name: string;
+  yearName: string;
+}
+
+interface StudentParent {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+}
+
+interface Student {
   id: string;
   name: string;
   level: string;
-  attendanceRate: number;
-  totalSessions: number;
-  absentCount: number;
-  attendanceHistory: { date: string; subject: string; status: 'present' | 'absent' | 'late' }[];
+  gender: string;
+  section: StudentSection | null;
+  attendance: StudentAttendance;
+  parent: StudentParent | null;
 }
 
-const demoStudents: StudentData[] = [
-  {
-    id: '1', name: 'أمين حسين', level: '3 متوسط', attendanceRate: 72, totalSessions: 25, absentCount: 7,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'الرياضيات', status: 'absent' },
-      { date: '2025-01-11', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-10', subject: 'الفيزياء', status: 'present' },
-      { date: '2025-01-09', subject: 'الرياضيات', status: 'late' },
-      { date: '2025-01-08', subject: 'الفيزياء', status: 'absent' },
-    ],
-  },
-  {
-    id: '2', name: 'سارة بلقاسم', level: '3 متوسط', attendanceRate: 85, totalSessions: 25, absentCount: 4,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'الفيزياء', status: 'absent' },
-      { date: '2025-01-11', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-10', subject: 'الفيزياء', status: 'present' },
-      { date: '2025-01-09', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-08', subject: 'الفيزياء', status: 'present' },
-    ],
-  },
-  {
-    id: '3', name: 'ياسين مراد', level: '2 ثانوي', attendanceRate: 60, totalSessions: 20, absentCount: 8,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'الرياضيات', status: 'absent' },
-      { date: '2025-01-11', subject: 'الرياضيات', status: 'absent' },
-      { date: '2025-01-10', subject: 'العلوم', status: 'present' },
-      { date: '2025-01-09', subject: 'الرياضيات', status: 'absent' },
-      { date: '2025-01-08', subject: 'العلوم', status: 'late' },
-    ],
-  },
-  {
-    id: '4', name: 'زينب شريف', level: '1 ثانوي', attendanceRate: 95, totalSessions: 20, absentCount: 1,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'العلوم', status: 'present' },
-      { date: '2025-01-11', subject: 'العلوم', status: 'present' },
-      { date: '2025-01-10', subject: 'العلوم', status: 'present' },
-      { date: '2025-01-09', subject: 'العلوم', status: 'absent' },
-      { date: '2025-01-08', subject: 'العلوم', status: 'present' },
-    ],
-  },
-  {
-    id: '5', name: 'محمد العربي', level: '3 متوسط', attendanceRate: 78, totalSessions: 25, absentCount: 6,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-11', subject: 'الفيزياء', status: 'absent' },
-      { date: '2025-01-10', subject: 'الرياضيات', status: 'late' },
-      { date: '2025-01-09', subject: 'الفيزياء', status: 'present' },
-      { date: '2025-01-08', subject: 'الرياضيات', status: 'absent' },
-    ],
-  },
-  {
-    id: '6', name: 'نور الهدى بن عمر', level: '2 ثانوي', attendanceRate: 92, totalSessions: 20, absentCount: 2,
-    attendanceHistory: [
-      { date: '2025-01-12', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-11', subject: 'الرياضيات', status: 'present' },
-      { date: '2025-01-10', subject: 'العلوم', status: 'present' },
-      { date: '2025-01-09', subject: 'الرياضيات', status: 'absent' },
-      { date: '2025-01-08', subject: 'العلوم', status: 'present' },
-    ],
-  },
-];
+interface SectionInfo {
+  id: string;
+  name: string;
+  yearName: string;
+}
+
+interface GroupedSection {
+  sectionInfo: SectionInfo;
+  students: Student[];
+}
+
+interface SectionDetail {
+  id: string;
+  name: string;
+  yearName: string;
+  level: string;
+  studentCount: number;
+  isSupervisor: boolean;
+}
+
+interface ApiResponse {
+  grouped: Record<string, Record<string, GroupedSection>>;
+  sections: SectionDetail[];
+  totalStudents: number;
+}
 
 // ─── Animation Variants ─────────────────────────────────────
 const containerVariants = {
@@ -116,43 +116,169 @@ const itemVariants = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' } },
 };
 
-// ─── Attendance Status Icons ────────────────────────────────
-const attendanceStatusConfig = {
-  present: { label: 'حاضر', color: 'text-emerald-600', icon: <CheckCircle2 className="h-4 w-4" /> },
-  absent: { label: 'غائب', color: 'text-red-600', icon: <XCircle className="h-4 w-4" /> },
-  late: { label: 'متأخر', color: 'text-amber-600', icon: <Clock className="h-4 w-4" /> },
-};
+// ─── Helper: Attendance color ───────────────────────────────
+function getAttendanceColor(rate: number) {
+  if (rate >= 85) return 'text-emerald-600';
+  if (rate >= 75) return 'text-amber-600';
+  return 'text-red-600';
+}
+
+function getAttendanceBg(rate: number) {
+  if (rate >= 85) return 'bg-emerald-500';
+  if (rate >= 75) return 'bg-amber-500';
+  return 'bg-red-500';
+}
+
+function getAttendanceProgressClass(rate: number) {
+  if (rate >= 85) return '[&>div]:bg-emerald-500';
+  if (rate >= 75) return '[&>div]:bg-amber-500';
+  return '[&>div]:bg-red-500';
+}
+
+function getAvatarBorder(rate: number) {
+  if (rate >= 85) return 'border-emerald-300';
+  if (rate >= 75) return 'border-amber-300';
+  return 'border-red-300';
+}
+
+function getAvatarColors(rate: number) {
+  if (rate >= 85) return 'bg-emerald-50 text-emerald-600';
+  if (rate >= 75) return 'bg-amber-50 text-amber-600';
+  return 'bg-red-50 text-red-600';
+}
+
+function getCardRing(rate: number) {
+  if (rate < 75) return 'ring-1 ring-red-200';
+  if (rate < 80) return 'ring-1 ring-amber-200';
+  return '';
+}
+
+function getInitials(name: string) {
+  return name
+    .split(' ')
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2);
+}
+
+function getGenderLabel(gender: string) {
+  if (gender === 'MALE' || gender === 'male') return 'ذكر';
+  if (gender === 'FEMALE' || gender === 'female') return 'أنثى';
+  return gender;
+}
 
 // ─── Main Component ─────────────────────────────────────────
 export default function TeacherStudentsView() {
   const user = useAppStore((s) => s.user);
+  const teacherId = user?.teacherId || '';
+
+  // Data state
+  const [data, setData] = useState<ApiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Filter state
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<StudentData | null>(null);
+  const [levelFilter, setLevelFilter] = useState<string>('all');
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
+
+  // UI state
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [expandedLevels, setExpandedLevels] = useState<Record<string, boolean>>({});
+  const [showFilters, setShowFilters] = useState(false);
 
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return demoStudents;
-    return demoStudents.filter((s) =>
-      s.name.includes(searchQuery.trim())
-    );
-  }, [searchQuery]);
+  // ─── Fetch data ───────────────────────────────────────────
+  const fetchStudents = useCallback(async () => {
+    if (!teacherId) return;
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ teacherId });
+      if (levelFilter && levelFilter !== 'all') params.set('level', levelFilter);
+      if (sectionFilter && sectionFilter !== 'all') params.set('sectionId', sectionFilter);
+      if (searchQuery.trim()) params.set('search', searchQuery.trim());
 
-  const openStudentDetail = (student: StudentData) => {
+      const res = await fetch(`/api/teacher/students?${params.toString()}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'فشل في جلب البيانات');
+      }
+      const json: ApiResponse = await res.json();
+      setData(json);
+
+      // Auto-expand all levels on first load
+      const levels = Object.keys(json.grouped);
+      const expanded: Record<string, boolean> = {};
+      levels.forEach((l) => (expanded[l] = true));
+      setExpandedLevels(expanded);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'فشل في جلب بيانات التلاميذ');
+    } finally {
+      setLoading(false);
+    }
+  }, [teacherId, levelFilter, sectionFilter, searchQuery]);
+
+  useEffect(() => {
+    fetchStudents();
+  }, [fetchStudents]);
+
+  // ─── Derived data ─────────────────────────────────────────
+  const availableLevels = useMemo(() => {
+    if (!data?.sections) return [];
+    const levels = new Set(data.sections.map((s) => s.level).filter(Boolean));
+    return Array.from(levels);
+  }, [data]);
+
+  const filteredSections = useMemo(() => {
+    if (!data?.sections) return [];
+    if (levelFilter === 'all') return data.sections;
+    return data.sections.filter((s) => s.level === levelFilter);
+  }, [data, levelFilter]);
+
+  const hasActiveFilters = levelFilter !== 'all' || sectionFilter !== 'all' || searchQuery.trim() !== '';
+
+  // All students flat (for filtered view)
+  const allStudentsFlat = useMemo(() => {
+    if (!data?.grouped) return [];
+    const students: Student[] = [];
+    for (const levelSections of Object.values(data.grouped)) {
+      for (const group of Object.values(levelSections)) {
+        students.push(...group.students);
+      }
+    }
+    return students;
+  }, [data]);
+
+  // ─── Handlers ─────────────────────────────────────────────
+  const openStudentDetail = (student: Student) => {
     setSelectedStudent(student);
     setDetailOpen(true);
   };
 
-  const getAttendanceColor = (rate: number) => {
-    if (rate >= 85) return 'text-emerald-600';
-    if (rate >= 75) return 'text-amber-600';
-    return 'text-red-600';
+  const toggleLevel = (level: string) => {
+    setExpandedLevels((prev) => ({ ...prev, [level]: !prev[level] }));
   };
 
-  const getProgressColor = (rate: number) => {
-    if (rate >= 85) return '[&>div]:bg-emerald-500';
-    if (rate >= 75) return '[&>div]:bg-amber-500';
-    return '[&>div]:bg-red-500';
+  const resetFilters = () => {
+    setLevelFilter('all');
+    setSectionFilter('all');
+    setSearchQuery('');
   };
+
+  // When level changes, reset section filter
+  const handleLevelChange = (value: string) => {
+    setLevelFilter(value);
+    setSectionFilter('all');
+  };
+
+  // ─── Loading state ────────────────────────────────────────
+  if (loading && !data) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24" dir="rtl">
+        <Loader2 className="h-10 w-10 text-edutrack-primary animate-spin mb-4" />
+        <p className="text-muted-foreground text-sm">جارٍ تحميل بيانات التلاميذ...</p>
+      </div>
+    );
+  }
 
   return (
     <motion.div
@@ -162,8 +288,11 @@ export default function TeacherStudentsView() {
       className="space-y-6"
       dir="rtl"
     >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* ── Header ──────────────────────────────────────────── */}
+      <motion.div
+        variants={itemVariants}
+        className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4"
+      >
         <div>
           <h1 className="text-2xl font-bold text-edutrack-dark flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-edutrack-primary/10 flex items-center justify-center">
@@ -173,110 +302,224 @@ export default function TeacherStudentsView() {
           </h1>
           <p className="text-muted-foreground mt-1 text-sm">إدارة ومتابعة تلاميذك</p>
         </div>
-        <Badge variant="outline" className="w-fit text-sm py-1.5 px-3 border-edutrack-primary/20 text-edutrack-primary bg-edutrack-primary/5">
-          {demoStudents.length} تلميذ
+        <Badge
+          variant="outline"
+          className="w-fit text-sm py-1.5 px-3 border-edutrack-primary/20 text-edutrack-primary bg-edutrack-primary/5"
+        >
+          <Users className="h-3.5 w-3.5 ml-1" />
+          {data?.totalStudents ?? 0} تلميذ
         </Badge>
       </motion.div>
 
-      {/* Search */}
+      {/* ── Filters Row ─────────────────────────────────────── */}
       <motion.div variants={itemVariants}>
-        <div className="relative max-w-md">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="ابحث عن تلميذ..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pr-9 h-10 bg-white border-gray-200 focus:border-edutrack-primary focus:ring-edutrack-primary/20 rounded-lg text-sm"
-          />
-        </div>
-      </motion.div>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="بحث عن تلميذ..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pr-9 h-10 bg-white border-gray-200 focus:border-edutrack-primary focus:ring-edutrack-primary/20 rounded-lg text-sm"
+            />
+          </div>
 
-      {/* Student List */}
-      <motion.div variants={itemVariants}>
-        <div className="space-y-3">
-          <AnimatePresence>
-            {filteredStudents.map((student, index) => {
-              const isWarning = student.attendanceRate < 80;
-              const isCritical = student.attendanceRate < 70;
+          {/* Level Filter */}
+          <Select value={levelFilter} onValueChange={handleLevelChange}>
+            <SelectTrigger className="w-full sm:w-[160px] h-10 rounded-lg bg-white border-gray-200 text-sm">
+              <SelectValue placeholder="المستوى" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">المستوى: الكل</SelectItem>
+              {availableLevels.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-              return (
-                <motion.div
-                  key={student.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ delay: index * 0.04, duration: 0.3 }}
-                >
-                  <Card
-                    className={`border-0 shadow-sm bg-white overflow-hidden hover:shadow-md transition-all duration-300 cursor-pointer ${
-                      isCritical ? 'ring-1 ring-red-200' : isWarning ? 'ring-1 ring-amber-200' : ''
-                    }`}
-                    onClick={() => openStudentDetail(student)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
-                        {/* Avatar */}
-                        <Avatar className={`h-11 w-11 border-2 ${
-                          isCritical ? 'border-red-300' : isWarning ? 'border-amber-300' : 'border-edutrack-primary/20'
-                        }`}>
-                          <AvatarFallback className={`text-sm font-bold ${
-                            isCritical ? 'bg-red-50 text-red-600' : isWarning ? 'bg-amber-50 text-amber-600' : 'bg-edutrack-primary/10 text-edutrack-primary'
-                          }`}>
-                            {student.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
+          {/* Section Filter */}
+          <Select value={sectionFilter} onValueChange={setSectionFilter}>
+            <SelectTrigger className="w-full sm:w-[180px] h-10 rounded-lg bg-white border-gray-200 text-sm">
+              <SelectValue placeholder="القسم" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">القسم: الكل</SelectItem>
+              {filteredSections.map((section) => (
+                <SelectItem key={section.id} value={section.id}>
+                  {section.name} {section.yearName ? `- ${section.yearName}` : ''}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-                        {/* Info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-semibold text-sm text-edutrack-dark truncate">{student.name}</h3>
-                            {isWarning && (
-                              <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200 text-[10px] gap-0.5 px-1.5 py-0 flex-shrink-0">
-                                <AlertTriangle className="h-3 w-3" />
-                                غياب كثير
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-xs text-muted-foreground">{student.level}</p>
-                        </div>
+          {/* Filter toggle button */}
+          <Button
+            variant="outline"
+            size="icon"
+            className={`h-10 w-10 rounded-lg border-gray-200 shrink-0 ${
+              hasActiveFilters
+                ? 'bg-edutrack-primary/10 border-edutrack-primary/30 text-edutrack-primary'
+                : 'bg-white text-muted-foreground'
+            }`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4" />
+          </Button>
 
-                        {/* Attendance */}
-                        <div className="flex flex-col items-end gap-1.5 min-w-[100px]">
-                          <div className="flex items-center gap-1.5">
-                            <span className={`text-lg font-bold font-inter ${getAttendanceColor(student.attendanceRate)}`}>
-                              {student.attendanceRate}%
-                            </span>
-                          </div>
-                          <Progress value={student.attendanceRate} className={`h-1.5 w-full ${getProgressColor(student.attendanceRate)}`} />
-                          <span className="text-[10px] text-muted-foreground">
-                            {student.absentCount} غياب من {student.totalSessions}
-                          </span>
-                        </div>
-
-                        {/* Chevron */}
-                        <ChevronLeft className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
-
-          {filteredStudents.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-12"
+          {/* Reset filters */}
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetFilters}
+              className="text-xs text-edutrack-primary hover:text-edutrack-dark rounded-lg h-10"
             >
-              <GraduationCap className="h-12 w-12 text-gray-200 mx-auto mb-3" />
-              <p className="text-muted-foreground">لم يتم العثور على نتائج</p>
-            </motion.div>
+              إعادة تعيين
+            </Button>
           )}
         </div>
       </motion.div>
 
-      {/* Student Detail Dialog */}
+      {/* ── Students Content ────────────────────────────────── */}
+      <motion.div variants={itemVariants}>
+        {data && data.totalStudents === 0 ? (
+          /* Empty state */
+          <div className="text-center py-16">
+            <GraduationCap className="h-16 w-16 text-gray-200 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-edutrack-dark mb-2">لا توجد نتائج</h3>
+            <p className="text-sm text-muted-foreground">
+              {hasActiveFilters
+                ? 'لم يتم العثور على تلاميذ مطابقين لمعايير البحث'
+                : 'لم يتم العثور على تلاميذ'}
+            </p>
+            {hasActiveFilters && (
+              <Button
+                variant="outline"
+                onClick={resetFilters}
+                className="mt-4 rounded-lg text-edutrack-primary border-edutrack-primary/30"
+              >
+                إعادة تعيين الفلاتر
+              </Button>
+            )}
+          </div>
+        ) : hasActiveFilters ? (
+          /* ── Flat filtered list ──────────────────────────── */
+          <div className="space-y-3">
+            <AnimatePresence>
+              {allStudentsFlat.map((student, index) => (
+                <StudentCard
+                  key={student.id}
+                  student={student}
+                  index={index}
+                  onClick={() => openStudentDetail(student)}
+                />
+              ))}
+            </AnimatePresence>
+          </div>
+        ) : (
+          /* ── Grouped by Level → Section ─────────────────── */
+          <div className="space-y-4">
+            {Object.entries(data?.grouped || {}).map(([level, sections]) => {
+              const levelStudentCount = Object.values(sections).reduce(
+                (acc, s) => acc + s.students.length,
+                0
+              );
+              const isExpanded = expandedLevels[level] !== false;
+
+              return (
+                <Collapsible
+                  key={level}
+                  open={isExpanded}
+                  onOpenChange={() => toggleLevel(level)}
+                >
+                  {/* Level Header */}
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-between p-3 h-auto rounded-xl bg-edutrack-light/50 hover:bg-edutrack-light/80 mb-2"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-lg bg-edutrack-primary/10 flex items-center justify-center">
+                          <GraduationCap className="h-4 w-4 text-edutrack-primary" />
+                        </div>
+                        <span className="font-bold text-edutrack-dark text-base">
+                          {level}
+                        </span>
+                        <Badge
+                          variant="secondary"
+                          className="text-xs bg-edutrack-primary/10 text-edutrack-primary"
+                        >
+                          {levelStudentCount} تلميذ
+                        </Badge>
+                      </div>
+                      <ChevronLeft
+                        className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${
+                          isExpanded ? '-rotate-90' : ''
+                        }`}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+
+                  {/* Sections under this level */}
+                  <CollapsibleContent>
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: 'auto' }}
+                          exit={{ opacity: 0, height: 0 }}
+                          transition={{ duration: 0.3 }}
+                          className="space-y-4 pr-2 sm:pr-4"
+                        >
+                          {Object.values(sections).map((sectionGroup) => (
+                            <div key={sectionGroup.sectionInfo.id}>
+                              {/* Section Header */}
+                              <div className="flex items-center gap-2 mb-3 px-1">
+                                <MapPin className="h-3.5 w-3.5 text-edutrack-primary" />
+                                <span className="text-sm font-semibold text-edutrack-dark">
+                                  {sectionGroup.sectionInfo.name}
+                                </span>
+                                {sectionGroup.sectionInfo.yearName && (
+                                  <span className="text-xs text-muted-foreground">
+                                    - {sectionGroup.sectionInfo.yearName}
+                                  </span>
+                                )}
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 text-muted-foreground border-border/50"
+                                >
+                                  {sectionGroup.students.length} تلميذ
+                                </Badge>
+                              </div>
+
+                              {/* Students in this section */}
+                              <div className="space-y-2.5">
+                                {sectionGroup.students.map((student, index) => (
+                                  <StudentCard
+                                    key={student.id}
+                                    student={student}
+                                    index={index}
+                                    onClick={() => openStudentDetail(student)}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── Student Detail Dialog ──────────────────────────── */}
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
@@ -292,64 +535,230 @@ export default function TeacherStudentsView() {
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
                 <Avatar className="h-14 w-14 border-2 border-edutrack-primary/20">
                   <AvatarFallback className="bg-edutrack-primary/10 text-edutrack-primary font-bold text-lg">
-                    {selectedStudent.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    {getInitials(selectedStudent.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h3 className="font-bold text-edutrack-dark text-lg">{selectedStudent.name}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedStudent.level}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-edutrack-dark text-lg truncate">
+                    {selectedStudent.name}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedStudent.level}
+                    </Badge>
+                    {selectedStudent.section && (
+                      <Badge variant="outline" className="text-xs">
+                        {selectedStudent.section.name}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {getGenderLabel(selectedStudent.gender)}
+                    </Badge>
+                  </div>
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Attendance Stats */}
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-emerald-50 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground">نسبة الحضور</p>
-                  <p className={`font-bold text-lg font-inter ${getAttendanceColor(selectedStudent.attendanceRate)}`}>
-                    {selectedStudent.attendanceRate}%
-                  </p>
+                <div
+                  className={`rounded-xl p-3 text-center ${
+                    selectedStudent.attendance.rate >= 85
+                      ? 'bg-emerald-50'
+                      : selectedStudent.attendance.rate >= 75
+                        ? 'bg-amber-50'
+                        : 'bg-red-50'
+                  }`}
+                >
+                  <p className="text-[10px] text-muted-foreground mb-1">نسبة الحضور</p>
+                  <div className="flex items-center justify-center gap-1">
+                    {selectedStudent.attendance.rate >= 85 ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    ) : selectedStudent.attendance.rate >= 75 ? (
+                      <Clock className="h-4 w-4 text-amber-600" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-600" />
+                    )}
+                    <p
+                      className={`font-bold text-lg font-inter ${getAttendanceColor(selectedStudent.attendance.rate)}`}
+                    >
+                      {selectedStudent.attendance.rate}%
+                    </p>
+                  </div>
                 </div>
                 <div className="bg-gray-50 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground">إجمالي الحصص</p>
-                  <p className="font-bold text-lg font-inter text-edutrack-dark">{selectedStudent.totalSessions}</p>
+                  <p className="text-[10px] text-muted-foreground mb-1">إجمالي الحصص</p>
+                  <p className="font-bold text-lg font-inter text-edutrack-dark">
+                    {selectedStudent.attendance.total}
+                  </p>
                 </div>
                 <div className="bg-red-50 rounded-xl p-3 text-center">
-                  <p className="text-[10px] text-muted-foreground">الغيابات</p>
-                  <p className="font-bold text-lg font-inter text-red-600">{selectedStudent.absentCount}</p>
+                  <p className="text-[10px] text-muted-foreground mb-1">الغيابات</p>
+                  <p className="font-bold text-lg font-inter text-red-600">
+                    {selectedStudent.attendance.absent}
+                  </p>
                 </div>
+              </div>
+
+              {/* Attendance Progress */}
+              <div className="bg-gray-50 rounded-xl p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-muted-foreground">نسبة الحضور</span>
+                  <span
+                    className={`text-sm font-bold font-inter ${getAttendanceColor(selectedStudent.attendance.rate)}`}
+                  >
+                    {selectedStudent.attendance.rate}%
+                  </span>
+                </div>
+                <Progress
+                  value={selectedStudent.attendance.rate}
+                  className={`h-2 ${getAttendanceProgressClass(selectedStudent.attendance.rate)}`}
+                />
+                {selectedStudent.attendance.rate < 80 && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    <span className="text-xs text-amber-600 font-medium">
+                      نسبة الحضور أقل من المطلوب
+                    </span>
+                  </div>
+                )}
               </div>
 
               <Separator />
 
-              {/* Attendance History */}
-              <div>
-                <h4 className="font-semibold text-edutrack-dark mb-3 text-sm">سجل الحضور الأخير</h4>
-                <ScrollArea className="max-h-60">
-                  <div className="space-y-2">
-                    {selectedStudent.attendanceHistory.map((record, idx) => {
-                      const statusCfg = attendanceStatusConfig[record.status];
-                      return (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <span className={statusCfg.color}>{statusCfg.icon}</span>
-                            <div>
-                              <p className="text-sm font-medium text-edutrack-dark">{record.subject}</p>
-                              <p className="text-xs text-muted-foreground font-inter">{record.date}</p>
-                            </div>
+              {/* Parent Info */}
+              {selectedStudent.parent && (
+                <div>
+                  <h4 className="font-semibold text-edutrack-dark mb-3 text-sm flex items-center gap-2">
+                    <Users className="h-4 w-4 text-edutrack-primary" />
+                    معلومات ولي الأمر
+                  </h4>
+                  <Card className="border-border/50">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border border-edutrack-primary/20">
+                            <AvatarFallback className="bg-edutrack-primary/10 text-edutrack-primary text-sm font-bold">
+                              {getInitials(selectedStudent.parent.name)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium text-sm text-edutrack-dark">
+                              {selectedStudent.parent.name}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              ولي الأمر
+                            </p>
                           </div>
-                          <Badge variant="outline" className={`${record.status === 'present' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : record.status === 'absent' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'} text-xs`}>
-                            {statusCfg.label}
-                          </Badge>
                         </div>
-                      );
-                    })}
-                  </div>
-                </ScrollArea>
-              </div>
+                        {selectedStudent.parent.phone && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Phone className="h-3.5 w-3.5" />
+                            <span className="font-inter" dir="ltr">
+                              {selectedStudent.parent.phone}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {/* Close button */}
+              <Button
+                variant="outline"
+                onClick={() => setDetailOpen(false)}
+                className="w-full rounded-lg mt-2"
+              >
+                إغلاق
+              </Button>
             </div>
           )}
         </DialogContent>
       </Dialog>
+    </motion.div>
+  );
+}
+
+// ─── Student Card Sub-component ──────────────────────────────
+function StudentCard({
+  student,
+  index,
+  onClick,
+}: {
+  student: Student;
+  index: number;
+  onClick: () => void;
+}) {
+  const rate = student.attendance.rate;
+  const isWarning = rate < 80;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      transition={{ delay: index * 0.03, duration: 0.3 }}
+    >
+      <Card
+        className={`border-0 shadow-sm bg-white overflow-hidden hover:shadow-md transition-all duration-300 cursor-pointer ${getCardRing(rate)}`}
+        onClick={onClick}
+      >
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Avatar */}
+            <Avatar className={`h-11 w-11 border-2 ${getAvatarBorder(rate)}`}>
+              <AvatarFallback
+                className={`text-sm font-bold ${getAvatarColors(rate)}`}
+              >
+                {getInitials(student.name)}
+              </AvatarFallback>
+            </Avatar>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-0.5">
+                <h3 className="font-semibold text-sm text-edutrack-dark truncate">
+                  {student.name}
+                </h3>
+                {isWarning && (
+                  <Badge
+                    variant="outline"
+                    className="bg-red-50 text-red-600 border-red-200 text-[10px] gap-0.5 px-1.5 py-0 flex-shrink-0"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    غياب كثير
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground truncate">
+                {student.section
+                  ? `${student.section.name}${student.section.yearName ? ` - ${student.section.yearName}` : ''}`
+                  : student.level}
+              </p>
+            </div>
+
+            {/* Attendance */}
+            <div className="flex flex-col items-end gap-1.5 min-w-[90px] sm:min-w-[100px]">
+              <span
+                className={`text-base sm:text-lg font-bold font-inter ${getAttendanceColor(rate)}`}
+              >
+                {rate}%
+              </span>
+              <Progress
+                value={rate}
+                className={`h-1.5 w-full ${getAttendanceProgressClass(rate)}`}
+              />
+              <span className="text-[10px] text-muted-foreground">
+                {student.attendance.absent} غياب من {student.attendance.total}
+              </span>
+            </div>
+
+            {/* Chevron */}
+            <ChevronLeft className="h-4 w-4 text-muted-foreground flex-shrink-0 hidden sm:block" />
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }

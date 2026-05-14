@@ -39,6 +39,7 @@ import {
   ChevronLeft,
   User,
   BellRing,
+  MessageCircle,
 } from 'lucide-react';
 
 interface NavItem {
@@ -56,6 +57,7 @@ const directorNavItems: NavItem[] = [
   { label: 'الغيابات', icon: <ClipboardX className="h-5 w-5" />, view: 'director-absences' },
   { label: 'الفوترة', icon: <Receipt className="h-5 w-5" />, view: 'director-billing' },
   { label: 'التقارير', icon: <BarChart3 className="h-5 w-5" />, view: 'director-reports' },
+  { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'director-messages' },
   { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'director-notifications' },
   { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'director-settings' },
 ];
@@ -66,7 +68,9 @@ const teacherNavItems: NavItem[] = [
   { label: 'تسجيل الحضور', icon: <ClipboardCheck className="h-5 w-5" />, view: 'teacher-attendance' },
   { label: 'الطلاب', icon: <GraduationCap className="h-5 w-5" />, view: 'teacher-students' },
   { label: 'إبلاغ غياب', icon: <AlertCircle className="h-5 w-5" />, view: 'teacher-absence-request' },
+  { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'teacher-messages' },
   { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'teacher-notifications' },
+  { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'teacher-settings' },
 ];
 
 const parentNavItems: NavItem[] = [
@@ -207,9 +211,11 @@ function HeaderContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isPulsing, setIsPulsing] = useState(false);
   const [instData, setInstData] = useState<{ name: string; logo: string | null }>({ name: '', logo: null });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userIdRef = useRef<string | undefined>(undefined);
+  const unreadCountRef = useRef(0);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -238,7 +244,7 @@ function HeaderContent() {
     }
   }, [user?.institutionId, setInstitutionLogo]);
 
-  // Fetch unread count on mount and every 30 seconds
+  // Fetch unread count on mount and every 15 seconds
   useEffect(() => {
     const fetchUnreadCount = async () => {
       const uid = userIdRef.current;
@@ -247,7 +253,14 @@ function HeaderContent() {
         const res = await fetch(`/api/notifications?userId=${uid}&unreadOnly=true&limit=1`);
         if (res.ok) {
           const data = await res.json();
-          setUnreadCount(data.unreadCount || 0);
+          const newCount = data.unreadCount || 0;
+          // Trigger pulse animation when new notifications arrive
+          if (newCount > unreadCountRef.current) {
+            setIsPulsing(true);
+            setTimeout(() => setIsPulsing(false), 2000);
+          }
+          unreadCountRef.current = newCount;
+          setUnreadCount(newCount);
         }
       } catch {
         // Silently fail
@@ -255,7 +268,7 @@ function HeaderContent() {
     };
 
     fetchUnreadCount();
-    intervalRef.current = setInterval(fetchUnreadCount, 30000);
+    intervalRef.current = setInterval(fetchUnreadCount, 15000);
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -320,20 +333,26 @@ function HeaderContent() {
         variant="ghost"
         size="icon"
         onClick={handleNotificationClick}
-        className="relative h-9 w-9 text-edutrack-dark hover:bg-edutrack-primary/10"
+        className={`relative h-9 w-9 text-edutrack-dark hover:bg-edutrack-primary/10 ${
+          isPulsing ? 'animate-pulse' : ''
+        }`}
       >
         {unreadCount > 0 ? (
-          <BellRing className="h-5 w-5 text-edutrack-primary" />
+          <motion.div
+            animate={isPulsing ? { scale: [1, 1.3, 1, 1.2, 1] } : { scale: 1 }}
+            transition={{ duration: 0.8, ease: 'easeInOut' }}
+          >
+            <BellRing className="h-5 w-5 text-edutrack-primary" />
+          </motion.div>
         ) : (
           <Bell className="h-5 w-5" />
         )}
         {unreadCount > 0 && (
           <motion.span
             initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className={`absolute -top-1 -left-1 h-5 min-w-[20px] flex items-center justify-center p-0 bg-edutrack-danger text-white text-[10px] font-bold border-2 border-white rounded-full ${
-              unreadCount > 0 ? 'animate-pulse' : ''
-            }`}
+            animate={{ scale: isPulsing ? [1, 1.3, 1] : 1 }}
+            transition={{ duration: 0.5, ease: 'easeInOut' }}
+            className="absolute -top-1 -left-1 h-5 min-w-[20px] flex items-center justify-center p-0 bg-edutrack-danger text-white text-[10px] font-bold border-2 border-white rounded-full"
           >
             {unreadCount > 99 ? '99+' : unreadCount}
           </motion.span>
@@ -380,7 +399,13 @@ function HeaderContent() {
               </Badge>
             )}
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer flex-row-reverse justify-end gap-2">
+          <DropdownMenuItem
+            onClick={() => {
+              const settingsView = user.role === 'TEACHER' ? 'teacher-settings' : 'director-settings';
+              setCurrentView(settingsView as ViewType);
+            }}
+            className="cursor-pointer flex-row-reverse justify-end gap-2"
+          >
             <Settings className="h-4 w-4" />
             <span>الإعدادات</span>
           </DropdownMenuItem>

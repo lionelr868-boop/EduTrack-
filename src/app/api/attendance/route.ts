@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     // Verify session exists
     const session = await db.session.findUnique({
       where: { id: sessionId },
-      include: { subject: true },
+      include: { subject: true, section: { include: { year: true } } },
     });
 
     if (!session) {
@@ -94,6 +94,29 @@ export async function POST(request: NextRequest) {
 
     if (notifications.length > 0) {
       await db.notification.createMany({ data: notifications });
+    }
+
+    // Notify the institution director about the attendance submission
+    const lateRecords = records.filter(r => r.status === 'LATE');
+    const absentCount = absentRecords.length;
+    const lateCount = lateRecords.length;
+    const sectionName = session.section?.name || 'غير محدد';
+
+    const director = await db.user.findFirst({
+      where: {
+        institutionId: session.institutionId,
+        role: 'DIRECTOR',
+      },
+    });
+
+    if (director) {
+      await db.notification.create({
+        data: {
+          userId: director.id,
+          message: `تم تسجيل حضور قسم ${sectionName} - ${absentCount} غائب، ${lateCount} متأخر`,
+          type: 'ATTENDANCE',
+        },
+      });
     }
 
     // Update absence notification status

@@ -14,17 +14,21 @@ export type ViewType =
   | 'director-settings'
   | 'director-notifications'
   | 'director-sections'
+  | 'director-messages'
   | 'teacher-dashboard'
   | 'teacher-schedule'
   | 'teacher-attendance'
   | 'teacher-students'
   | 'teacher-absence-request'
   | 'teacher-notifications'
+  | 'teacher-messages'
+  | 'teacher-settings'
   | 'parent-dashboard'
   | 'parent-schedule'
   | 'parent-absences'
   | 'parent-invoices'
-  | 'parent-notifications';
+  | 'parent-notifications'
+  | 'parent-messages';
 
 interface AuthUser {
   id: string;
