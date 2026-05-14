@@ -106,19 +106,18 @@ function getNotificationsView(role: string): ViewType {
 
 // SidebarContent defined OUTSIDE the main component to avoid lint errors
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
-  const { currentView, setCurrentView, user } = useAppStore();
-  const [instLogo, setInstLogo] = useState<string | null>(null);
+  const { currentView, setCurrentView, user, institutionLogo, setInstitutionLogo } = useAppStore();
 
   useEffect(() => {
     if (user?.institutionId) {
       fetch(`/api/settings?institutionId=${user.institutionId}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data?.logo) setInstLogo(data.logo);
+          if (data?.logo) setInstitutionLogo(data.logo);
         })
         .catch(() => {});
     }
-  }, [user?.institutionId]);
+  }, [user?.institutionId, setInstitutionLogo]);
 
   if (!user) return null;
 
@@ -128,9 +127,9 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
-        {instLogo ? (
+        {institutionLogo ? (
           <div className="h-10 w-10 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
-            <img src={instLogo} alt="شعار" className="h-9 w-9 object-contain" />
+            <img src={institutionLogo} alt="شعار" className="h-9 w-9 object-contain" />
           </div>
         ) : (
           <div className="h-10 w-10 rounded-xl bg-edutrack-primary flex items-center justify-center shadow-lg shadow-edutrack-primary/30 flex-shrink-0">
@@ -204,7 +203,7 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
 
 // HeaderContent defined OUTSIDE the main component
 function HeaderContent() {
-  const { user, setUser, setCurrentView, setSidebarOpen } = useAppStore();
+  const { user, setUser, setCurrentView, setSidebarOpen, institutionLogo, setInstitutionLogo } = useAppStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -230,11 +229,14 @@ function HeaderContent() {
       fetch(`/api/settings?institutionId=${user.institutionId}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data) setInstData({ name: data.name || '', logo: data.logo || null });
+          if (data) {
+            setInstData({ name: data.name || '', logo: data.logo || null });
+            if (data.logo) setInstitutionLogo(data.logo);
+          }
         })
         .catch(() => {});
     }
-  }, [user?.institutionId]);
+  }, [user?.institutionId, setInstitutionLogo]);
 
   // Fetch unread count on mount and every 30 seconds
   useEffect(() => {
@@ -397,7 +399,7 @@ function HeaderContent() {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarOpen, setSidebarOpen, user } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, user, institutionLogo, setInstitutionLogo } = useAppStore();
   const [isMobile, setIsMobile] = useState(false);
   const [instData, setInstData] = useState<{ name: string; logo: string | null }>({ name: '', logo: null });
 
@@ -414,11 +416,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       fetch(`/api/settings?institutionId=${user.institutionId}`)
         .then(r => r.ok ? r.json() : null)
         .then(data => {
-          if (data) setInstData({ name: data.name || '', logo: data.logo || null });
+          if (data) {
+            setInstData({ name: data.name || '', logo: data.logo || null });
+            if (data.logo) setInstitutionLogo(data.logo);
+          }
         })
         .catch(() => {});
     }
-  }, [user?.institutionId]);
+  }, [user?.institutionId, setInstitutionLogo]);
 
   return (
     <div className="min-h-screen bg-edutrack-light flex" dir="rtl">

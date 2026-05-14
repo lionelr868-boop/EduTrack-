@@ -57,6 +57,11 @@ import {
   User,
   ImagePlus,
   X,
+  Shield,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -150,6 +155,8 @@ const WILAYAS = [
 
 export default function SettingsView() {
   const user = useAppStore((s) => s.user);
+  const setInstitutionLogo = useAppStore((s) => s.setInstitutionLogo);
+  const institutionLogo = useAppStore((s) => s.institutionLogo);
   const institutionId = user?.institutionId || '';
 
   const [activeTab, setActiveTab] = useState('institution');
@@ -191,6 +198,15 @@ export default function SettingsView() {
   const [priceLevel, setPriceLevel] = useState('');
   const [priceAmount, setPriceAmount] = useState('');
 
+  // Password change
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
   // Subjects for pricing
   const [subjects, setSubjects] = useState<{ id: string; name: string; level: string }[]>([]);
 
@@ -209,6 +225,7 @@ export default function SettingsView() {
         setInstCity(data.city || '');
         setInstWilaya(data.wilaya || '');
         setInstLogo(data.logo || null);
+        if (data.logo) setInstitutionLogo(data.logo);
         setInstDirectorName(data.directorName || '');
         setInstAcademicYear(data.academicYear || '2024/2025');
         setInstPlan(data.subscriptionPlan || 'FREE');
@@ -375,6 +392,7 @@ export default function SettingsView() {
       if (res.ok) {
         const data = await res.json();
         setInstLogo(data.logoUrl);
+        setInstitutionLogo(data.logoUrl);
         toast.success('تم رفع الشعار بنجاح');
       } else {
         const data = await res.json();
@@ -397,6 +415,7 @@ export default function SettingsView() {
       });
       if (res.ok) {
         setInstLogo(null);
+        setInstitutionLogo(null);
         toast.success('تم حذف الشعار');
       }
     } catch {
@@ -482,6 +501,52 @@ export default function SettingsView() {
     );
   };
 
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error('يرجى ملء جميع الحقول');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('كلمة المرور الجديدة يجب أن تكون 6 أحرف على الأقل');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('كلمة المرور الجديدة غير متطابقة');
+      return;
+    }
+    if (!user?.id) {
+      toast.error('خطأ في المصادقة');
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user.id,
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        toast.success('تم تغيير كلمة المرور بنجاح');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        toast.error(data.error || 'حدث خطأ أثناء تغيير كلمة المرور');
+      }
+    } catch {
+      toast.error('تعذر الاتصال بالخادم');
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <motion.div
       variants={containerVariants}
@@ -536,6 +601,10 @@ export default function SettingsView() {
               <TabsTrigger value="subscription" className="rounded-lg text-sm px-4 data-[state=active]:bg-edutrack-primary data-[state=active]:text-white whitespace-nowrap">
                 <CreditCard className="h-4 w-4 ml-1.5" />
                 الاشتراك
+              </TabsTrigger>
+              <TabsTrigger value="account" className="rounded-lg text-sm px-4 data-[state=active]:bg-edutrack-primary data-[state=active]:text-white whitespace-nowrap">
+                <Shield className="h-4 w-4 ml-1.5" />
+                الحساب
               </TabsTrigger>
             </TabsList>
           </div>
@@ -1170,6 +1239,262 @@ export default function SettingsView() {
           </TabsContent>
         </Tabs>
       </motion.div>
+
+      {/* ─── Account Tab ──────────────────────────────────────────────── */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'account' && (
+          <motion.div
+            key="account"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+            {/* Account Info Card */}
+            <Card className="border-0 shadow-md shadow-gray-100/80 bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                  <User className="h-5 w-5 text-edutrack-primary" />
+                  معلومات الحساب
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">الاسم الكامل</Label>
+                    <div className="relative">
+                      <User className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={user?.name || ''}
+                        className="pr-10 h-11 bg-gray-50"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">البريد الإلكتروني</Label>
+                    <div className="relative">
+                      <Mail className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={user?.email || ''}
+                        className="pr-10 h-11 bg-gray-50"
+                        dir="ltr"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">الدور</Label>
+                    <div className="relative">
+                      <Shield className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={user?.role === 'DIRECTOR' ? 'مدير' : user?.role === 'TEACHER' ? 'أستاذ' : 'ولي أمر'}
+                        className="pr-10 h-11 bg-gray-50"
+                        disabled
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">معرف المؤسسة</Label>
+                    <Input
+                      value={user?.institutionId || ''}
+                      className="h-11 bg-gray-50 font-inter text-xs"
+                      dir="ltr"
+                      disabled
+                    />
+                  </div>
+                </div>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 flex items-start gap-2">
+                  <Shield className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-700">لتعديل اسمك أو بريدك الإلكتروني، يرجى التواصل مع مسؤول النظام</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Change Password Card */}
+            <Card className="border-0 shadow-md shadow-gray-100/80 bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-edutrack-primary" />
+                  تغيير كلمة المرور
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">تأكد من استخدام كلمة مرور قوية لحماية حسابك</p>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Current Password */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">كلمة المرور الحالية *</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type={showCurrentPassword ? 'text' : 'password'}
+                      placeholder="أدخل كلمة المرور الحالية"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className="pr-10 pl-10 h-11"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-edutrack-dark transition-colors"
+                    >
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* New Password */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">كلمة المرور الجديدة *</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="أدخل كلمة المرور الجديدة"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      className="pr-10 pl-10 h-11"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-edutrack-dark transition-colors"
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {/* Password strength indicator */}
+                  {newPassword && (
+                    <div className="space-y-2">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4].map((level) => (
+                          <div
+                            key={level}
+                            className={`h-1.5 flex-1 rounded-full transition-colors ${
+                              newPassword.length >= level * 3
+                                ? newPassword.length >= 12
+                                  ? 'bg-emerald-500'
+                                  : newPassword.length >= 8
+                                  ? 'bg-amber-500'
+                                  : 'bg-red-400'
+                                : 'bg-gray-200'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-[10px]">
+                        <span className={`flex items-center gap-1 ${newPassword.length >= 6 ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {newPassword.length >= 6 ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          6 أحرف على الأقل
+                        </span>
+                        <span className={`flex items-center gap-1 ${/[A-Z]/.test(newPassword) ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {/[A-Z]/.test(newPassword) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          حرف كبير
+                        </span>
+                        <span className={`flex items-center gap-1 ${/[0-9]/.test(newPassword) ? 'text-emerald-600' : 'text-gray-400'}`}>
+                          {/[0-9]/.test(newPassword) ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                          رقم
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Confirm Password */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">تأكيد كلمة المرور الجديدة *</Label>
+                  <div className="relative">
+                    <KeyRound className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="أعد إدخال كلمة المرور الجديدة"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pr-10 pl-10 h-11"
+                      dir="ltr"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-edutrack-dark transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {confirmPassword && newPassword && (
+                    <div className={`flex items-center gap-1 text-[11px] ${confirmPassword === newPassword ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {confirmPassword === newPassword ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          كلمة المرور متطابقة
+                        </>
+                      ) : (
+                        <>
+                          <X className="h-3 w-3" />
+                          كلمة المرور غير متطابقة
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                  className="bg-edutrack-primary hover:bg-edutrack-primary/90 text-white h-11"
+                >
+                  {changingPassword ? (
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                  ) : (
+                    <KeyRound className="h-4 w-4 ml-2" />
+                  )}
+                  {changingPassword ? 'جاري التغيير...' : 'تغيير كلمة المرور'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Security Tips Card */}
+            <Card className="border-0 shadow-md shadow-gray-100/80 bg-white">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-edutrack-primary" />
+                  نصائح الأمان
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-emerald-50/80 border border-emerald-100">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-emerald-800">استخدم كلمة مرور قوية</p>
+                      <p className="text-xs text-emerald-600">اجمع بين الأحرف الكبيرة والصغيرة والأرقام والرموز</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/80 border border-amber-100">
+                    <CheckCircle2 className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800">لا تشارك كلمة المرور</p>
+                      <p className="text-xs text-amber-600">لا ترسل كلمة المرور عبر البريد الإلكتروني أو الرسائل</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50/80 border border-blue-100">
+                    <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800">غيّر كلمة المرور بانتظام</p>
+                      <p className="text-xs text-blue-600">يُنصح بتغييرها كل 3 أشهر على الأقل</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Add/Edit Pricing Dialog */}
       <Dialog open={pricingDialogOpen} onOpenChange={setPricingDialogOpen}>

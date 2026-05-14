@@ -46,6 +46,8 @@ interface AppState {
   setSidebarOpen: (open: boolean) => void;
   demoMode: boolean;
   setDemoMode: (demo: boolean) => void;
+  institutionLogo: string | null;
+  setInstitutionLogo: (logo: string | null) => void;
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -58,4 +60,6 @@ export const useAppStore = create<AppState>((set) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   demoMode: false,
   setDemoMode: (demo) => set({ demoMode: demo }),
+  institutionLogo: null,
+  setInstitutionLogo: (logo) => set({ institutionLogo: logo }),
 }));
