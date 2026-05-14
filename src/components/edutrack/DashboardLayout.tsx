@@ -40,6 +40,8 @@ import {
   User,
   BellRing,
   MessageCircle,
+  PenLine,
+  UsersRound,
 } from 'lucide-react';
 
 interface NavItem {
@@ -75,10 +77,14 @@ const teacherNavItems: NavItem[] = [
 
 const parentNavItems: NavItem[] = [
   { label: 'الرئيسية', icon: <Home className="h-5 w-5" />, view: 'parent-dashboard' },
+  { label: 'أبنائي', icon: <UsersRound className="h-5 w-5" />, view: 'parent-children' },
   { label: 'الجدول', icon: <Calendar className="h-5 w-5" />, view: 'parent-schedule' },
   { label: 'الغيابات', icon: <ClipboardX className="h-5 w-5" />, view: 'parent-absences' },
+  { label: 'النقاط', icon: <PenLine className="h-5 w-5" />, view: 'parent-grades' },
   { label: 'الفواتير', icon: <Receipt className="h-5 w-5" />, view: 'parent-invoices' },
+  { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'parent-messages' },
   { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'parent-notifications' },
+  { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'parent-settings' },
 ];
 
 function getNavItems(role: string): NavItem[] {
@@ -401,7 +407,7 @@ function HeaderContent() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              const settingsView = user.role === 'TEACHER' ? 'teacher-settings' : 'director-settings';
+              const settingsView = user.role === 'TEACHER' ? 'teacher-settings' : user.role === 'PARENT' ? 'parent-settings' : 'director-settings';
               setCurrentView(settingsView as ViewType);
             }}
             className="cursor-pointer flex-row-reverse justify-end gap-2"

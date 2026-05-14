@@ -28,7 +28,10 @@ export type ViewType =
   | 'parent-absences'
   | 'parent-invoices'
   | 'parent-notifications'
-  | 'parent-messages';
+  | 'parent-messages'
+  | 'parent-settings'
+  | 'parent-grades'
+  | 'parent-children';
 
 interface AuthUser {
   id: string;

@@ -81,18 +81,29 @@ export default function ParentInvoicesView() {
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [expandedInvoice, setExpandedInvoice] = useState<string | null>(null);
+  const [childIds, setChildIds] = useState<string[]>([]);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
 
   const fetchInvoices = useCallback(async () => {
     if (!user?.id) return;
     setLoading(true);
     try {
-      // Get parent's students' invoices
-      const res = await fetch(`/api/invoices?institutionId=${user.institutionId}&limit=50`);
-      const data = await res.json();
-      if (res.ok) {
-        // Filter to only show invoices for this parent's children
-        // In a real app, we'd filter by parentId on the server
-        setInvoices(data.invoices);
+      // First get parent's children IDs
+      const dashRes = await fetch(`/api/parent/dashboard?userId=${user.id}`);
+      if (dashRes.ok) {
+        const dashData = await dashRes.json();
+        const myChildIds = dashData.children?.map((c: { id: string }) => c.id) || [];
+        setChildIds(myChildIds);
+
+        // Then get all invoices and filter by children
+        const invRes = await fetch(`/api/invoices?institutionId=${user.institutionId}&limit=100`);
+        if (invRes.ok) {
+          const invData = await invRes.json();
+          const myInvoices = (invData.invoices || []).filter(
+            (inv: Invoice) => myChildIds.includes(inv.studentId)
+          );
+          setInvoices(myInvoices);
+        }
       }
     } catch (error) {
       console.error('Error fetching invoices:', error);
@@ -119,9 +130,20 @@ export default function ParentInvoicesView() {
     }
   };
 
+  // Filtered invoices
+  const filteredInvoices = filterStatus === 'all'
+    ? invoices
+    : invoices.filter(inv => inv.status === filterStatus);
+
+  // Stats
+  const totalAmount = invoices.reduce((sum, inv) => sum + inv.amount, 0);
+  const paidAmount = invoices.filter(inv => inv.status === 'PAID').reduce((sum, inv) => sum + inv.amount, 0);
+  const unpaidAmount = totalAmount - paidAmount;
+  const unpaidCount = invoices.filter(inv => inv.status !== 'PAID').length;
+
   // Find the latest invoice (prefer unpaid)
-  const latestInvoice = invoices.length > 0
-    ? invoices.find((inv) => inv.status !== 'PAID') || invoices[0]
+  const latestInvoice = filteredInvoices.length > 0
+    ? filteredInvoices.find((inv) => inv.status !== 'PAID') || filteredInvoices[0]
     : null;
 
   const containerVariants = {
@@ -155,11 +177,66 @@ export default function ParentInvoicesView() {
         <p className="text-muted-foreground mt-1 text-sm">سجل فواتير أبنائكم</p>
       </motion.div>
 
+      {/* Stats Row */}
+      {!loading && invoices.length > 0 && (
+        <motion.div variants={itemVariants} className="mb-6">
+          <div className="grid grid-cols-3 gap-3">
+            <Card className="border-0 shadow-sm bg-gray-50">
+              <CardContent className="p-3 text-center">
+                <p className="text-[10px] text-muted-foreground mb-1">الإجمالي</p>
+                <p className="text-sm font-bold text-edutrack-dark font-inter">{formatAmount(totalAmount)}</p>
+              </CardContent>
+            </Card>
+            <Card className="border-0 shadow-sm bg-emerald-50">
+              <CardContent className="p-3 text-center">
+                <p className="text-[10px] text-emerald-600 mb-1">المدفوع</p>
+                <p className="text-sm font-bold text-emerald-700 font-inter">{formatAmount(paidAmount)}</p>
+              </CardContent>
+            </Card>
+            <Card className={`border-0 shadow-sm ${unpaidCount > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
+              <CardContent className="p-3 text-center">
+                <p className={`text-[10px] mb-1 ${unpaidCount > 0 ? 'text-orange-600' : 'text-muted-foreground'}`}>المستحق</p>
+                <p className={`text-sm font-bold font-inter ${unpaidCount > 0 ? 'text-orange-700' : 'text-muted-foreground'}`}>{formatAmount(unpaidAmount)}</p>
+              </CardContent>
+            </Card>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Filter Tabs */}
+      {!loading && invoices.length > 0 && (
+        <motion.div variants={itemVariants} className="mb-4">
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {[
+              { value: 'all', label: 'الكل', count: invoices.length },
+              { value: 'PENDING', label: 'معلقة', count: invoices.filter(i => i.status === 'PENDING').length },
+              { value: 'PAID', label: 'مدفوعة', count: invoices.filter(i => i.status === 'PAID').length },
+              { value: 'OVERDUE', label: 'متأخرة', count: invoices.filter(i => i.status === 'OVERDUE').length },
+            ].map(tab => (
+              <button
+                key={tab.value}
+                onClick={() => setFilterStatus(tab.value)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-200 ${
+                  filterStatus === tab.value
+                    ? 'bg-edutrack-primary text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {tab.label}
+                <span className={`text-[10px] ${filterStatus === tab.value ? 'text-white/70' : 'text-muted-foreground'}`}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-8 w-8 text-edutrack-primary animate-spin" />
         </div>
-      ) : invoices.length === 0 ? (
+      ) : filteredInvoices.length === 0 ? (
         <motion.div variants={itemVariants} className="text-center py-20">
           <FileText className="h-16 w-16 text-gray-200 mx-auto mb-4" />
           <p className="text-muted-foreground text-lg">لا توجد فواتير حالياً</p>
@@ -225,7 +302,7 @@ export default function ParentInvoicesView() {
             <h2 className="font-semibold text-edutrack-dark mb-3 text-sm">جميع الفواتير</h2>
             <div className="space-y-3">
               <AnimatePresence>
-                {invoices.map((invoice, index) => {
+                {filteredInvoices.map((invoice, index) => {
                   const status = statusConfig[invoice.status] || statusConfig.PENDING;
                   const isExpanded = expandedInvoice === invoice.id;
 

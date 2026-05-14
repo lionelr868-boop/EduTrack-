@@ -26,6 +26,9 @@ const ParentScheduleView = dynamic(() => import('@/components/edutrack/ParentSch
 const ParentAbsencesView = dynamic(() => import('@/components/edutrack/ParentAbsencesView'), { ssr: false });
 const ParentInvoicesView = dynamic(() => import('@/components/edutrack/ParentInvoicesView'), { ssr: false });
 const ParentNotificationsView = dynamic(() => import('@/components/edutrack/ParentNotificationsView'), { ssr: false });
+const ParentSettingsView = dynamic(() => import('@/components/edutrack/ParentSettingsView'), { ssr: false });
+const ParentGradesView = dynamic(() => import('@/components/edutrack/ParentGradesView'), { ssr: false });
+const ParentChildrenView = dynamic(() => import('@/components/edutrack/ParentChildrenView'), { ssr: false });
 const NotificationsView = dynamic(() => import('@/components/edutrack/NotificationsView'), { ssr: false });
 const SectionsView = dynamic(() => import('@/components/edutrack/SectionsView'), { ssr: false });
 const MessagingView = dynamic(() => import('@/components/edutrack/MessagingView'), { ssr: false });
@@ -107,6 +110,14 @@ export default function Home() {
         return <DashboardLayout><ParentInvoicesView /></DashboardLayout>;
       case 'parent-notifications':
         return <DashboardLayout><ParentNotificationsView /></DashboardLayout>;
+      case 'parent-messages':
+        return <DashboardLayout><MessagingView /></DashboardLayout>;
+      case 'parent-settings':
+        return <DashboardLayout><ParentSettingsView /></DashboardLayout>;
+      case 'parent-grades':
+        return <DashboardLayout><ParentGradesView /></DashboardLayout>;
+      case 'parent-children':
+        return <DashboardLayout><ParentChildrenView /></DashboardLayout>;
 
       default:
         return <LandingPage />;

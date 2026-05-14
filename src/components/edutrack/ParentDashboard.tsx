@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Home,
   Calendar,
   ClipboardX,
   Receipt,
@@ -19,7 +18,6 @@ import {
   XCircle,
   Clock,
   GraduationCap,
-  AlertCircle,
   ChevronLeft,
   BookOpen,
   FileText,
@@ -143,20 +141,7 @@ interface DashboardData {
   };
 }
 
-// ─── Bottom Navigation Config ───────────────────────────────
-interface BottomNavItem {
-  label: string;
-  icon: React.ReactNode;
-  view: ViewType;
-}
 
-const bottomNavItems: BottomNavItem[] = [
-  { label: 'الرئيسية', icon: <Home className="h-5 w-5" />, view: 'parent-dashboard' },
-  { label: 'الجدول', icon: <Calendar className="h-5 w-5" />, view: 'parent-schedule' },
-  { label: 'الغيابات', icon: <ClipboardX className="h-5 w-5" />, view: 'parent-absences' },
-  { label: 'الفواتير', icon: <Receipt className="h-5 w-5" />, view: 'parent-invoices' },
-  { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'parent-notifications' },
-];
 
 // ─── Quick Actions Config ───────────────────────────────────
 interface QuickAction {
@@ -168,10 +153,12 @@ interface QuickAction {
 }
 
 const quickActions: QuickAction[] = [
-  { label: 'الجدول الأسبوعي', icon: <Calendar className="h-7 w-7" />, view: 'parent-schedule', color: 'text-edutrack-primary', bgColor: 'bg-edutrack-primary/10' },
+  { label: 'أبنائي', icon: <Users className="h-7 w-7" />, view: 'parent-children' as ViewType, color: 'text-edutrack-primary', bgColor: 'bg-edutrack-primary/10' },
+  { label: 'الجدول الأسبوعي', icon: <Calendar className="h-7 w-7" />, view: 'parent-schedule', color: 'text-edutrack-secondary', bgColor: 'bg-orange-50' },
   { label: 'سجل الغيابات', icon: <ClipboardX className="h-7 w-7" />, view: 'parent-absences', color: 'text-red-500', bgColor: 'bg-red-50' },
+  { label: 'النقاط', icon: <Activity className="h-7 w-7" />, view: 'parent-grades' as ViewType, color: 'text-teal-500', bgColor: 'bg-teal-50' },
   { label: 'الفواتير', icon: <Receipt className="h-7 w-7" />, view: 'parent-invoices', color: 'text-orange-500', bgColor: 'bg-orange-50' },
-  { label: 'الإشعارات', icon: <Bell className="h-7 w-7" />, view: 'parent-notifications', color: 'text-edutrack-secondary', bgColor: 'bg-orange-50' },
+  { label: 'المراسلات', icon: <Bell className="h-7 w-7" />, view: 'parent-messages' as ViewType, color: 'text-violet-500', bgColor: 'bg-violet-50' },
 ];
 
 // ─── Activity Type Config ───────────────────────────────────
@@ -288,41 +275,10 @@ function formatDateArabic(dateStr: string): string {
   });
 }
 
-// ─── Bottom Navigation Bar ──────────────────────────────────
-function BottomNavBar() {
-  const { currentView, setCurrentView } = useAppStore();
-
-  return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-2px_10px_rgba(0,0,0,0.05)] safe-area-bottom">
-      <div className="flex items-center justify-around h-16 max-w-lg mx-auto px-2">
-        {bottomNavItems.map((item) => {
-          const isActive = currentView === item.view;
-          return (
-            <button
-              key={item.view}
-              onClick={() => setCurrentView(item.view)}
-              className={`flex flex-col items-center justify-center gap-0.5 min-w-[56px] py-1 transition-colors duration-200 ${
-                isActive ? 'text-edutrack-primary' : 'text-gray-400'
-              }`}
-            >
-              <div className={`p-1.5 rounded-xl transition-all duration-200 ${isActive ? 'bg-edutrack-primary/10' : ''}`}>
-                {item.icon}
-              </div>
-              <span className={`text-[10px] font-semibold ${isActive ? 'text-edutrack-primary' : 'text-gray-400'}`}>
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ─── Loading Skeleton ───────────────────────────────────────
 function DashboardSkeleton() {
   return (
-    <div className="pb-24 px-4 space-y-5" dir="rtl">
+    <div className="px-4 space-y-5" dir="rtl">
       {/* Welcome */}
       <div>
         <Skeleton className="h-7 w-40 mb-2" />
@@ -470,7 +426,7 @@ export default function ParentDashboard() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="pb-24 px-4"
+        className="px-4"
         dir="rtl"
       >
         {/* ── Welcome Section ─────────────────────────────── */}
@@ -832,7 +788,7 @@ export default function ParentDashboard() {
         {/* ── Quick Actions ──────────────────────────────── */}
         <motion.div variants={itemVariants}>
           <h2 className="text-sm font-bold text-edutrack-dark mb-3">إجراءات سريعة</h2>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             {quickActions.map((action, index) => (
               <motion.div
                 key={action.view}
@@ -913,8 +869,6 @@ export default function ParentDashboard() {
         </motion.div>
       </motion.div>
 
-      {/* Bottom Navigation Bar */}
-      <BottomNavBar />
     </>
   );
 }

@@ -14,20 +14,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const notifications = await db.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [notifications, unreadCount] = await Promise.all([
+      db.notification.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      }),
+      db.notification.count({
+        where: { userId, read: false },
+      }),
+    ]);
 
     const mapped = notifications.map(n => ({
       id: n.id,
+      title: n.title,
       message: n.message,
       type: n.type,
       read: n.read,
+      link: n.link,
       createdAt: n.createdAt.toISOString(),
     }));
 
-    return NextResponse.json({ notifications: mapped });
+    return NextResponse.json({ notifications: mapped, unreadCount });
   } catch (error) {
     console.error('Error fetching parent notifications:', error);
     return NextResponse.json(
