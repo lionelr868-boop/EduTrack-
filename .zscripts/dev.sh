@@ -25,7 +25,7 @@ while true; do
   RESTART_COUNT=$((RESTART_COUNT + 1))
   echo "[DEV] Starting Next.js dev server (attempt #$RESTART_COUNT)..."
   
-  NODE_OPTIONS='--max-old-space-size=384' node node_modules/.bin/next dev -p 3000 &
+  NODE_OPTIONS='--max-old-space-size=1536' node node_modules/.bin/next dev -p 3000 &
   SERVER_PID=$!
   
   # Wait for server to be ready
