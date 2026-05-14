@@ -107,6 +107,18 @@ function getNotificationsView(role: string): ViewType {
 // SidebarContent defined OUTSIDE the main component to avoid lint errors
 function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
   const { currentView, setCurrentView, user } = useAppStore();
+  const [instLogo, setInstLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user?.institutionId) {
+      fetch(`/api/settings?institutionId=${user.institutionId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.logo) setInstLogo(data.logo);
+        })
+        .catch(() => {});
+    }
+  }, [user?.institutionId]);
 
   if (!user) return null;
 
@@ -116,9 +128,15 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-edutrack-primary flex items-center justify-center shadow-lg shadow-edutrack-primary/30 flex-shrink-0">
-          <GraduationCap className="h-6 w-6 text-white" />
-        </div>
+        {instLogo ? (
+          <div className="h-10 w-10 rounded-xl overflow-hidden flex-shrink-0 bg-white/10 flex items-center justify-center">
+            <img src={instLogo} alt="شعار" className="h-9 w-9 object-contain" />
+          </div>
+        ) : (
+          <div className="h-10 w-10 rounded-xl bg-edutrack-primary flex items-center justify-center shadow-lg shadow-edutrack-primary/30 flex-shrink-0">
+            <GraduationCap className="h-6 w-6 text-white" />
+          </div>
+        )}
         <div className="overflow-hidden">
           <h1 className="text-lg font-bold gradient-text">EduTrack</h1>
           <p className="text-[10px] text-white/50 whitespace-nowrap">منصة تسيير المؤسسات</p>
@@ -190,6 +208,7 @@ function HeaderContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isMobile, setIsMobile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [instData, setInstData] = useState<{ name: string; logo: string | null }>({ name: '', logo: null });
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const userIdRef = useRef<string | undefined>(undefined);
 
@@ -204,6 +223,18 @@ function HeaderContent() {
   useEffect(() => {
     userIdRef.current = user?.id;
   }, [user]);
+
+  // Fetch institution data
+  useEffect(() => {
+    if (user?.institutionId) {
+      fetch(`/api/settings?institutionId=${user.institutionId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) setInstData({ name: data.name || '', logo: data.logo || null });
+        })
+        .catch(() => {});
+    }
+  }, [user?.institutionId]);
 
   // Fetch unread count on mount and every 30 seconds
   useEffect(() => {
@@ -256,9 +287,16 @@ function HeaderContent() {
       )}
 
       {/* Institution Name */}
-      <div className="hidden sm:block">
-        <h2 className="text-sm font-bold text-edutrack-dark">معهد النجاح التعليمي</h2>
-        <p className="text-[10px] text-muted-foreground">لوحة التحكم</p>
+      <div className="hidden sm:flex items-center gap-2">
+        {instData.logo ? (
+          <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
+            <img src={instData.logo} alt="شعار" className="h-7 w-7 object-contain" />
+          </div>
+        ) : null}
+        <div>
+          <h2 className="text-sm font-bold text-edutrack-dark">{instData.name || 'لوحة التحكم'}</h2>
+          <p className="text-[10px] text-muted-foreground">لوحة التحكم</p>
+        </div>
       </div>
 
       {/* Spacer */}
@@ -359,8 +397,9 @@ function HeaderContent() {
 }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { sidebarOpen, setSidebarOpen } = useAppStore();
+  const { sidebarOpen, setSidebarOpen, user } = useAppStore();
   const [isMobile, setIsMobile] = useState(false);
+  const [instData, setInstData] = useState<{ name: string; logo: string | null }>({ name: '', logo: null });
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 1024);
@@ -368,6 +407,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Fetch institution data
+  useEffect(() => {
+    if (user?.institutionId) {
+      fetch(`/api/settings?institutionId=${user.institutionId}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) setInstData({ name: data.name || '', logo: data.logo || null });
+        })
+        .catch(() => {});
+    }
+  }, [user?.institutionId]);
 
   return (
     <div className="min-h-screen bg-edutrack-light flex" dir="rtl">
@@ -389,10 +440,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SheetContent side="right" className="w-72 bg-edutrack-dark border-white/10 p-0">
             <div className="flex items-center justify-between p-4 border-b border-white/10">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-edutrack-primary flex items-center justify-center">
-                  <GraduationCap className="h-5 w-5 text-white" />
-                </div>
-                <span className="gradient-text font-bold">EduTrack</span>
+                {instData.logo ? (
+                  <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center bg-white/10">
+                    <img src={instData.logo} alt="شعار" className="h-7 w-7 object-contain" />
+                  </div>
+                ) : (
+                  <div className="h-8 w-8 rounded-lg bg-edutrack-primary flex items-center justify-center">
+                    <GraduationCap className="h-5 w-5 text-white" />
+                  </div>
+                )}
+                <span className="gradient-text font-bold">{instData.name || 'EduTrack'}</span>
               </div>
               <Button
                 variant="ghost"

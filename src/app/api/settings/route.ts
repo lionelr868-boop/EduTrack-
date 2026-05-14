@@ -12,14 +12,6 @@ export async function GET(request: NextRequest) {
 
     const institution = await db.institution.findUnique({
       where: { id: institutionId },
-      select: {
-        id: true,
-        name: true,
-        address: true,
-        phone: true,
-        logo: true,
-        subscriptionPlan: true,
-      },
     });
 
     if (!institution) {
@@ -36,7 +28,28 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { institutionId, name, address, phone } = body;
+    const {
+      institutionId,
+      name,
+      address,
+      phone,
+      email,
+      website,
+      city,
+      wilaya,
+      logo,
+      directorName,
+      academicYear,
+      workingDays,
+      sessionDuration,
+      startTime,
+      endTime,
+      enableSMS,
+      enableEmail,
+      absenceTemplate,
+      invoiceTemplate,
+      reminderTemplate,
+    } = body;
 
     if (!institutionId) {
       return NextResponse.json({ error: 'institutionId is required' }, { status: 400 });
@@ -46,6 +59,22 @@ export async function PUT(request: NextRequest) {
     if (name !== undefined) updateData.name = name;
     if (address !== undefined) updateData.address = address;
     if (phone !== undefined) updateData.phone = phone;
+    if (email !== undefined) updateData.email = email;
+    if (website !== undefined) updateData.website = website;
+    if (city !== undefined) updateData.city = city;
+    if (wilaya !== undefined) updateData.wilaya = wilaya;
+    if (logo !== undefined) updateData.logo = logo;
+    if (directorName !== undefined) updateData.directorName = directorName;
+    if (academicYear !== undefined) updateData.academicYear = academicYear;
+    if (workingDays !== undefined) updateData.workingDays = workingDays;
+    if (sessionDuration !== undefined) updateData.sessionDuration = sessionDuration;
+    if (startTime !== undefined) updateData.startTime = startTime;
+    if (endTime !== undefined) updateData.endTime = endTime;
+    if (enableSMS !== undefined) updateData.enableSMS = enableSMS;
+    if (enableEmail !== undefined) updateData.enableEmail = enableEmail;
+    if (absenceTemplate !== undefined) updateData.absenceTemplate = absenceTemplate;
+    if (invoiceTemplate !== undefined) updateData.invoiceTemplate = invoiceTemplate;
+    if (reminderTemplate !== undefined) updateData.reminderTemplate = reminderTemplate;
 
     const institution = await db.institution.update({
       where: { id: institutionId },
