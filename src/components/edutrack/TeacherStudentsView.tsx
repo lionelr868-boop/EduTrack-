@@ -29,6 +29,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Search,
   GraduationCap,
@@ -42,6 +44,9 @@ import {
   Phone,
   MapPin,
   Loader2,
+  Plus,
+  BookOpen,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -187,6 +192,25 @@ export default function TeacherStudentsView() {
   const [expandedLevels, setExpandedLevels] = useState<Record<string, boolean>>({});
   const [showFilters, setShowFilters] = useState(false);
 
+  // Add activity form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [activityType, setActivityType] = useState<string>('HOMEWORK');
+  const [activityTitle, setActivityTitle] = useState('');
+  const [activityDesc, setActivityDesc] = useState('');
+  const [activityGrade, setActivityGrade] = useState('');
+  const [activityMaxGrade, setActivityMaxGrade] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Quick-add dialog state (for student card button)
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickAddStudent, setQuickAddStudent] = useState<Student | null>(null);
+  const [quickActivityType, setQuickActivityType] = useState<string>('HOMEWORK');
+  const [quickActivityTitle, setQuickActivityTitle] = useState('');
+  const [quickActivityDesc, setQuickActivityDesc] = useState('');
+  const [quickActivityGrade, setQuickActivityGrade] = useState('');
+  const [quickActivityMaxGrade, setQuickActivityMaxGrade] = useState('');
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+
   // ─── Fetch data ───────────────────────────────────────────
   const fetchStudents = useCallback(async () => {
     if (!teacherId) return;
@@ -268,6 +292,104 @@ export default function TeacherStudentsView() {
   const handleLevelChange = (value: string) => {
     setLevelFilter(value);
     setSectionFilter('all');
+  };
+
+  // ─── Add Activity helpers ───────────────────────────────
+  const resetDetailForm = () => {
+    setActivityType('HOMEWORK');
+    setActivityTitle('');
+    setActivityDesc('');
+    setActivityGrade('');
+    setActivityMaxGrade('');
+    setSubmitting(false);
+    setShowAddForm(false);
+  };
+
+  const resetQuickForm = () => {
+    setQuickActivityType('HOMEWORK');
+    setQuickActivityTitle('');
+    setQuickActivityDesc('');
+    setQuickActivityGrade('');
+    setQuickActivityMaxGrade('');
+    setQuickSubmitting(false);
+  };
+
+  const handleSubmitActivity = async (
+    student: Student,
+    type: string,
+    title: string,
+    description: string,
+    grade: string,
+    maxGrade: string,
+    onSuccess: () => void
+  ) => {
+    if (!teacherId) {
+      toast.error('معرّف المعلم غير متوفر');
+      return;
+    }
+    if (!student.section?.id) {
+      toast.error('معرّف القسم غير متوفر لهذا التلميذ');
+      return;
+    }
+    if (!title.trim()) {
+      toast.error('العنوان مطلوب');
+      return;
+    }
+
+    const parsedGrade = grade ? parseFloat(grade) : undefined;
+    const parsedMaxGrade = maxGrade ? parseFloat(maxGrade) : undefined;
+
+    if (parsedGrade !== undefined && (isNaN(parsedGrade) || parsedGrade < 0)) {
+      toast.error('النقطة يجب أن تكون رقماً صحيحاً');
+      return;
+    }
+    if (parsedMaxGrade !== undefined && (isNaN(parsedMaxGrade) || parsedMaxGrade <= 0)) {
+      toast.error('النقطة القصوى يجب أن تكون رقماً أكبر من صفر');
+      return;
+    }
+    if (parsedGrade !== undefined && parsedMaxGrade === undefined) {
+      toast.error('يجب تحديد النقطة القصوى عند إدخال النقطة');
+      return;
+    }
+    if (parsedGrade !== undefined && parsedMaxGrade !== undefined && parsedGrade > parsedMaxGrade) {
+      toast.error('النقطة لا يمكن أن تتجاوز النقطة القصوى');
+      return;
+    }
+
+    const body: Record<string, unknown> = {
+      studentId: student.id,
+      teacherId,
+      sectionId: student.section.id,
+      type,
+      title: title.trim(),
+      description: description.trim() || undefined,
+    };
+    if (parsedGrade !== undefined) body.grade = parsedGrade;
+    if (parsedMaxGrade !== undefined) body.maxGrade = parsedMaxGrade;
+
+    try {
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'فشل في إضافة النشاط');
+      }
+      toast.success('تمت إضافة النشاط بنجاح');
+      onSuccess();
+      fetchStudents(); // refresh student list
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'فشل في إضافة النشاط');
+    }
+  };
+
+  const openQuickAdd = (student: Student, e: React.MouseEvent) => {
+    e.stopPropagation();
+    resetQuickForm();
+    setQuickAddStudent(student);
+    setQuickAddOpen(true);
   };
 
   // ─── Loading state ────────────────────────────────────────
@@ -415,6 +537,7 @@ export default function TeacherStudentsView() {
                   student={student}
                   index={index}
                   onClick={() => openStudentDetail(student)}
+                  onQuickAdd={(e) => openQuickAdd(student, e)}
                 />
               ))}
             </AnimatePresence>
@@ -503,6 +626,7 @@ export default function TeacherStudentsView() {
                                     student={student}
                                     index={index}
                                     onClick={() => openStudentDetail(student)}
+                                    onQuickAdd={(e) => openQuickAdd(student, e)}
                                   />
                                 ))}
                               </div>
@@ -520,7 +644,7 @@ export default function TeacherStudentsView() {
       </motion.div>
 
       {/* ── Student Detail Dialog ──────────────────────────── */}
-      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+      <Dialog open={detailOpen} onOpenChange={(open) => { setDetailOpen(open); if (!open) resetDetailForm(); }}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto" dir="rtl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-edutrack-dark">
@@ -623,6 +747,153 @@ export default function TeacherStudentsView() {
                 )}
               </div>
 
+              {/* Add Activity/Grade Button */}
+              {!showAddForm && (
+                <Button
+                  onClick={() => setShowAddForm(true)}
+                  className="w-full rounded-lg bg-edutrack-primary hover:bg-edutrack-primary/90 text-white"
+                >
+                  <Plus className="h-4 w-4 ml-2" />
+                  إضافة نقطة/نشاط
+                </Button>
+              )}
+
+              {/* Inline Add Activity Form */}
+              <AnimatePresence>
+                {showAddForm && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-edutrack-primary/5 rounded-xl p-4 space-y-3 border border-edutrack-primary/10">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-semibold text-sm text-edutrack-dark flex items-center gap-2">
+                          <BookOpen className="h-4 w-4 text-edutrack-primary" />
+                          إضافة نشاط جديد
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={resetDetailForm}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {/* Activity Type */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-edutrack-dark">نوع النشاط</Label>
+                        <Select value={activityType} onValueChange={setActivityType}>
+                          <SelectTrigger className="h-9 rounded-lg bg-white border-gray-200 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="HOMEWORK">واجب منزلي</SelectItem>
+                            <SelectItem value="EXAM">امتحان</SelectItem>
+                            <SelectItem value="QUIZ">اختبار قصير</SelectItem>
+                            <SelectItem value="PARTICIPATION">مشاركة</SelectItem>
+                            <SelectItem value="BEHAVIOR">سلوك</SelectItem>
+                            <SelectItem value="NOTE">ملاحظة</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Title */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-edutrack-dark">
+                          العنوان <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          placeholder="مثال: اختبار الفصل الأول"
+                          value={activityTitle}
+                          onChange={(e) => setActivityTitle(e.target.value)}
+                          className="h-9 bg-white border-gray-200 text-sm rounded-lg"
+                        />
+                      </div>
+
+                      {/* Description */}
+                      <div className="space-y-1.5">
+                        <Label className="text-xs text-edutrack-dark">الوصف (اختياري)</Label>
+                        <Textarea
+                          placeholder="أضف ملاحظات أو تفاصيل..."
+                          value={activityDesc}
+                          onChange={(e) => setActivityDesc(e.target.value)}
+                          className="bg-white border-gray-200 text-sm rounded-lg min-h-[60px]"
+                          rows={2}
+                        />
+                      </div>
+
+                      {/* Grade and Max Grade */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-edutrack-dark">النقطة (اختياري)</Label>
+                          <Input
+                            type="number"
+                            placeholder="0"
+                            min="0"
+                            value={activityGrade}
+                            onChange={(e) => setActivityGrade(e.target.value)}
+                            className="h-9 bg-white border-gray-200 text-sm rounded-lg font-inter"
+                            dir="ltr"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-edutrack-dark">النقطة القصوى</Label>
+                          <Input
+                            type="number"
+                            placeholder="20"
+                            min="0"
+                            value={activityMaxGrade}
+                            onChange={(e) => setActivityMaxGrade(e.target.value)}
+                            className="h-9 bg-white border-gray-200 text-sm rounded-lg font-inter"
+                            dir="ltr"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Submit */}
+                      <div className="flex gap-2 pt-1">
+                        <Button
+                          className="flex-1 rounded-lg bg-edutrack-primary hover:bg-edutrack-primary/90 text-white"
+                          disabled={submitting || !activityTitle.trim()}
+                          onClick={async () => {
+                            setSubmitting(true);
+                            await handleSubmitActivity(
+                              selectedStudent!,
+                              activityType,
+                              activityTitle,
+                              activityDesc,
+                              activityGrade,
+                              activityMaxGrade,
+                              () => resetDetailForm()
+                            );
+                            setSubmitting(false);
+                          }}
+                        >
+                          {submitting ? (
+                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                          ) : (
+                            <Plus className="h-4 w-4 ml-2" />
+                          )}
+                          {submitting ? 'جارٍ الإضافة...' : 'إضافة النشاط'}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="rounded-lg"
+                          onClick={resetDetailForm}
+                        >
+                          إلغاء
+                        </Button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <Separator />
 
               {/* Parent Info */}
@@ -667,10 +938,141 @@ export default function TeacherStudentsView() {
               {/* Close button */}
               <Button
                 variant="outline"
-                onClick={() => setDetailOpen(false)}
+                onClick={() => { setDetailOpen(false); resetDetailForm(); }}
                 className="w-full rounded-lg mt-2"
               >
                 إغلاق
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Quick Add Activity Dialog ───────────────────────── */}
+      <Dialog open={quickAddOpen} onOpenChange={(open) => { setQuickAddOpen(open); if (!open) resetQuickForm(); }}>
+        <DialogContent className="max-w-md" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-edutrack-dark">
+              <BookOpen className="h-5 w-5 text-edutrack-primary" />
+              إضافة نقطة / نشاط
+            </DialogTitle>
+          </DialogHeader>
+
+          {quickAddStudent && (
+            <div className="space-y-3">
+              {/* Student name badge */}
+              <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg">
+                <Avatar className="h-8 w-8 border border-edutrack-primary/20">
+                  <AvatarFallback className="bg-edutrack-primary/10 text-edutrack-primary text-xs font-bold">
+                    {getInitials(quickAddStudent.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <p className="font-medium text-sm text-edutrack-dark">{quickAddStudent.name}</p>
+                  {quickAddStudent.section && (
+                    <p className="text-xs text-muted-foreground">{quickAddStudent.section.name}</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Activity Type */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-edutrack-dark">نوع النشاط</Label>
+                <Select value={quickActivityType} onValueChange={setQuickActivityType}>
+                  <SelectTrigger className="h-9 rounded-lg bg-white border-gray-200 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HOMEWORK">واجب منزلي</SelectItem>
+                    <SelectItem value="EXAM">امتحان</SelectItem>
+                    <SelectItem value="QUIZ">اختبار قصير</SelectItem>
+                    <SelectItem value="PARTICIPATION">مشاركة</SelectItem>
+                    <SelectItem value="BEHAVIOR">سلوك</SelectItem>
+                    <SelectItem value="NOTE">ملاحظة</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Title */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-edutrack-dark">
+                  العنوان <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  placeholder="مثال: اختبار الفصل الأول"
+                  value={quickActivityTitle}
+                  onChange={(e) => setQuickActivityTitle(e.target.value)}
+                  className="h-9 bg-white border-gray-200 text-sm rounded-lg"
+                />
+              </div>
+
+              {/* Description */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-edutrack-dark">الوصف (اختياري)</Label>
+                <Textarea
+                  placeholder="أضف ملاحظات أو تفاصيل..."
+                  value={quickActivityDesc}
+                  onChange={(e) => setQuickActivityDesc(e.target.value)}
+                  className="bg-white border-gray-200 text-sm rounded-lg min-h-[60px]"
+                  rows={2}
+                />
+              </div>
+
+              {/* Grade and Max Grade */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-edutrack-dark">النقطة (اختياري)</Label>
+                  <Input
+                    type="number"
+                    placeholder="0"
+                    min="0"
+                    value={quickActivityGrade}
+                    onChange={(e) => setQuickActivityGrade(e.target.value)}
+                    className="h-9 bg-white border-gray-200 text-sm rounded-lg font-inter"
+                    dir="ltr"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-edutrack-dark">النقطة القصوى</Label>
+                  <Input
+                    type="number"
+                    placeholder="20"
+                    min="0"
+                    value={quickActivityMaxGrade}
+                    onChange={(e) => setQuickActivityMaxGrade(e.target.value)}
+                    className="h-9 bg-white border-gray-200 text-sm rounded-lg font-inter"
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+
+              {/* Submit */}
+              <Button
+                className="w-full rounded-lg bg-edutrack-primary hover:bg-edutrack-primary/90 text-white"
+                disabled={quickSubmitting || !quickActivityTitle.trim()}
+                onClick={async () => {
+                  setQuickSubmitting(true);
+                  await handleSubmitActivity(
+                    quickAddStudent!,
+                    quickActivityType,
+                    quickActivityTitle,
+                    quickActivityDesc,
+                    quickActivityGrade,
+                    quickActivityMaxGrade,
+                    () => {
+                      resetQuickForm();
+                      setQuickAddOpen(false);
+                    }
+                  );
+                  setQuickSubmitting(false);
+                }}
+              >
+                {quickSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                ) : (
+                  <Plus className="h-4 w-4 ml-2" />
+                )}
+                {quickSubmitting ? 'جارٍ الإضافة...' : 'إضافة النشاط'}
               </Button>
             </div>
           )}
@@ -685,10 +1087,12 @@ function StudentCard({
   student,
   index,
   onClick,
+  onQuickAdd,
 }: {
   student: Student;
   index: number;
   onClick: () => void;
+  onQuickAdd: (e: React.MouseEvent) => void;
 }) {
   const rate = student.attendance.rate;
   const isWarning = rate < 80;
@@ -753,6 +1157,17 @@ function StudentCard({
                 {student.attendance.absent} غياب من {student.attendance.total}
               </span>
             </div>
+
+            {/* Quick Add Grade Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onQuickAdd}
+              className="h-8 px-2 rounded-lg border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/10 hover:text-edutrack-primary text-[11px] gap-1 shrink-0"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">إضافة نقطة</span>
+            </Button>
 
             {/* Chevron */}
             <ChevronLeft className="h-4 w-4 text-muted-foreground flex-shrink-0 hidden sm:block" />

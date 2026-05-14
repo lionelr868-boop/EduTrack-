@@ -330,26 +330,34 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedChildIndex, setSelectedChildIndex] = useState(0);
   const [timetableDay, setTimetableDay] = useState(new Date().getDay());
+  const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ─── Fetch Dashboard Data ─────────────────────────────────
-  const fetchDashboardData = useCallback(async () => {
+  const fetchDashboardData = useCallback(async (showLoading = true) => {
     if (!user?.id) return;
 
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
+      else setIsRefreshing(true);
       const res = await fetch(`/api/parent/dashboard?userId=${user.id}`);
       if (!res.ok) throw new Error('Failed to fetch dashboard');
       const data = await res.json();
       setDashboardData(data);
+      setLastRefreshed(new Date());
     } catch (err) {
       console.error('Error fetching parent dashboard:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }, [user?.id]);
 
   useEffect(() => {
     fetchDashboardData();
+    // Auto-refresh every 30 seconds to pick up teacher updates
+    const interval = setInterval(() => fetchDashboardData(false), 30000);
+    return () => clearInterval(interval);
   }, [fetchDashboardData]);
 
   // ─── Today Date ───────────────────────────────────────────
@@ -431,12 +439,31 @@ export default function ParentDashboard() {
       >
         {/* ── Welcome Section ─────────────────────────────── */}
         <motion.div variants={itemVariants} className="mb-5">
-          <h1 className="text-xl font-bold text-edutrack-dark">
-            مرحباً، {parent.name?.split(' ')[0] || 'ولي الأمر'} 👋
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            {todayDate}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-xl font-bold text-edutrack-dark">
+                مرحباً، {parent.name?.split(' ')[0] || 'ولي الأمر'} 👋
+              </h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                {todayDate}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 text-emerald-600 bg-emerald-50">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                متصل مباشر
+              </Badge>
+              <Button
+                variant="ghost"
+                size="icon"
+                className={`h-8 w-8 ${isRefreshing ? 'animate-spin' : ''}`}
+                onClick={() => fetchDashboardData(false)}
+                disabled={isRefreshing}
+              >
+                <Activity className="h-4 w-4 text-edutrack-primary" />
+              </Button>
+            </div>
+          </div>
         </motion.div>
 
         {/* ── Child Selector (if multiple children) ──────── */}

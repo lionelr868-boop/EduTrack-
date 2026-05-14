@@ -32,6 +32,7 @@ const ParentChildrenView = dynamic(() => import('@/components/edutrack/ParentChi
 const NotificationsView = dynamic(() => import('@/components/edutrack/NotificationsView'), { ssr: false });
 const SectionsView = dynamic(() => import('@/components/edutrack/SectionsView'), { ssr: false });
 const MessagingView = dynamic(() => import('@/components/edutrack/MessagingView'), { ssr: false });
+const ParentMessagingView = dynamic(() => import('@/components/edutrack/ParentMessagingView'), { ssr: false });
 const TeacherSettingsView = dynamic(() => import('@/components/edutrack/TeacherSettingsView'), { ssr: false });
 
 function LoadingSpinner() {
@@ -111,7 +112,7 @@ export default function Home() {
       case 'parent-notifications':
         return <DashboardLayout><ParentNotificationsView /></DashboardLayout>;
       case 'parent-messages':
-        return <DashboardLayout><MessagingView /></DashboardLayout>;
+        return <DashboardLayout><ParentMessagingView /></DashboardLayout>;
       case 'parent-settings':
         return <DashboardLayout><ParentSettingsView /></DashboardLayout>;
       case 'parent-grades':

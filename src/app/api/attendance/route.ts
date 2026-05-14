@@ -74,6 +74,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Prepare common variables for notifications
+    const lateRecords = records.filter(r => r.status === 'LATE');
+    const absentCount = absentRecords.length;
+    const lateCount = lateRecords.length;
+    const sectionName = session.section?.name || 'غير محدد';
+
     // Create notifications for parents of absent students
     const absentStudents = await db.student.findMany({
       where: {
@@ -84,23 +90,43 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const notifications = absentStudents
+    const absentNotifications = absentStudents
       .filter(s => s.parent?.user)
       .map(s => ({
         userId: s.parent!.user.id,
-        message: `تنبيه: غاب ${s.name} عن حصة ${session.subject?.name || ''} اليوم`,
+        title: 'غياب تلميذ',
+        message: `تنبيه: غاب ${s.name} عن حصة ${session.subject?.name || ''} في القسم ${sectionName}`,
         type: 'ABSENCE',
       }));
 
-    if (notifications.length > 0) {
-      await db.notification.createMany({ data: notifications });
+    if (absentNotifications.length > 0) {
+      await db.notification.createMany({ data: absentNotifications });
+    }
+
+    // Create notifications for parents of late students
+    const lateStudents = await db.student.findMany({
+      where: {
+        id: { in: lateRecords.map(r => r.studentId) },
+      },
+      include: {
+        parent: { include: { user: true } },
+      },
+    });
+
+    const lateNotifications = lateStudents
+      .filter(s => s.parent?.user)
+      .map(s => ({
+        userId: s.parent!.user.id,
+        title: 'تأخر تلميذ',
+        message: `تنبيه: تأخر ${s.name} عن حصة ${session.subject?.name || ''} في القسم ${sectionName}`,
+        type: 'ABSENCE',
+      }));
+
+    if (lateNotifications.length > 0) {
+      await db.notification.createMany({ data: lateNotifications });
     }
 
     // Notify the institution director about the attendance submission
-    const lateRecords = records.filter(r => r.status === 'LATE');
-    const absentCount = absentRecords.length;
-    const lateCount = lateRecords.length;
-    const sectionName = session.section?.name || 'غير محدد';
 
     const director = await db.user.findFirst({
       where: {
@@ -113,6 +139,7 @@ export async function POST(request: NextRequest) {
       await db.notification.create({
         data: {
           userId: director.id,
+          title: 'تسجيل حضور',
           message: `تم تسجيل حضور قسم ${sectionName} - ${absentCount} غائب، ${lateCount} متأخر`,
           type: 'ATTENDANCE',
         },
@@ -134,7 +161,7 @@ export async function POST(request: NextRequest) {
       message: 'تم إرسال كشف الحضور بنجاح',
       recordsCreated: results.length,
       absentCount: absentRecords.length,
-      notificationsSent: notifications.length,
+      notificationsSent: absentNotifications.length + lateNotifications.length,
     }, { status: 201 });
   } catch (error) {
     console.error('Error submitting attendance:', error);

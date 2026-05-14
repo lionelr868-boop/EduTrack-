@@ -562,6 +562,16 @@ export default function ParentGradesView() {
     }
   }, [children, selectedChildIndex, fetchActivities]);
 
+  // ─── Auto-refresh activities every 30 seconds ───────────
+  useEffect(() => {
+    const currentChild = children[selectedChildIndex];
+    if (!currentChild) return;
+    const interval = setInterval(() => {
+      fetchActivities(currentChild.id);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [children, selectedChildIndex, fetchActivities]);
+
   // ─── Computed Values ────────────────────────────────────
   const currentChild = children[selectedChildIndex] || null;
 
@@ -674,6 +684,10 @@ export default function ParentGradesView() {
               <GraduationCap className="h-5 w-5 text-edutrack-primary" />
             </div>
             النقاط والأنشطة
+            <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 text-emerald-600 bg-emerald-50">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              مباشر من الأساتذة
+            </Badge>
           </h1>
           {currentChild && (
             <p className="text-sm text-muted-foreground mt-1">

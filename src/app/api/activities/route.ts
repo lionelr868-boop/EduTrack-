@@ -172,17 +172,18 @@ export async function POST(request: Request) {
 
     if (student?.parent?.user) {
       const typeLabel = getActivityTypeLabel(type);
+      const subjectName = activity.teacher.subject.name;
       let message = '';
-      if (grade !== null && grade !== null && maxGrade !== null) {
-        message = `${typeLabel}: ${title} - حصل ${student.name} على ${grade}/${maxGrade}`;
+      if (grade !== null && grade !== undefined && maxGrade !== null && maxGrade !== undefined) {
+        message = `${typeLabel}: ${title} - حصل ${student.name} على ${grade}/${maxGrade} في مادة ${subjectName}`;
       } else {
-        message = `${typeLabel}: ${title} - ${student.name}`;
+        message = `${typeLabel}: ${title} - ${student.name} في مادة ${subjectName}`;
       }
 
       await db.notification.create({
         data: {
           userId: student.parent.user.id,
-          title: typeLabel,
+          title: `${typeLabel}: ${title}`,
           message,
           type: 'ACTIVITY',
           link: `parent-activities-${studentId}`,

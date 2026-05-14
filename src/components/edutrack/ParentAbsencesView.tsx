@@ -374,6 +374,10 @@ export default function ParentAbsencesView() {
             <ClipboardX className="h-5 w-5 text-red-500" />
           </div>
           سجل الغيابات
+          <Badge variant="outline" className="text-[10px] gap-1 border-emerald-200 text-emerald-600 bg-emerald-50">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            مباشر من الأساتذة
+          </Badge>
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           {selectedChild
