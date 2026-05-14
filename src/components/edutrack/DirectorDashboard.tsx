@@ -959,22 +959,19 @@ export default function DirectorDashboard() {
               </p>
             </CardHeader>
             <CardContent>
-              <div className="h-64 flex items-center justify-center">
+              <div className="h-72 flex items-center justify-center">
                 {data.studentsByLevel.length > 0 && data.studentsByLevel.some((d) => d.count > 0) ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={data.studentsByLevel.filter((d) => d.count > 0)}
                         cx="50%"
-                        cy="50%"
-                        innerRadius={55}
-                        outerRadius={85}
+                        cy="45%"
+                        innerRadius={50}
+                        outerRadius={80}
                         paddingAngle={5}
                         dataKey="count"
                         nameKey="level"
-                        label={({ name, percent }) =>
-                          `${name} ${(percent * 100).toFixed(0)}%`
-                        }
                       >
                         {data.studentsByLevel
                           .filter((d) => d.count > 0)
@@ -986,11 +983,19 @@ export default function DirectorDashboard() {
                       <Legend
                         verticalAlign="bottom"
                         height={36}
-                        formatter={(value) => (
-                          <span className="text-xs text-edutrack-dark">
-                            {value}
-                          </span>
-                        )}
+                        iconType="circle"
+                        iconSize={8}
+                        formatter={(value, entry) => {
+                          const item = data.studentsByLevel.find((d) => d.level === value);
+                          const count = item?.count || 0;
+                          const total = data.totalStudents || 1;
+                          const pct = ((count / total) * 100).toFixed(0);
+                          return (
+                            <span className="text-xs text-edutrack-dark">
+                              {value} ({pct}%)
+                            </span>
+                          );
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
@@ -1267,15 +1272,15 @@ export default function DirectorDashboard() {
           </CardHeader>
           <CardContent>
             {data.teachers.length > 0 ? (
-              <ScrollArea className="max-h-96">
-                <div className="space-y-2">
+              <ScrollArea className="h-[340px]">
+                <div className="space-y-2 pr-1">
                   {data.teachers.map((teacher, index) => (
                     <motion.div
                       key={teacher.id}
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="flex items-center gap-4 p-3 rounded-lg border border-gray-100 hover:bg-gray-50/50 transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-lg border border-gray-100 hover:bg-gray-50/50 transition-colors"
                     >
                       {/* Avatar */}
                       <div className="h-10 w-10 rounded-full bg-edutrack-primary/10 flex items-center justify-center flex-shrink-0">
@@ -1286,7 +1291,7 @@ export default function DirectorDashboard() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <span className="font-semibold text-sm text-edutrack-dark truncate">
                             {teacher.name}
                           </span>
@@ -1307,18 +1312,23 @@ export default function DirectorDashboard() {
                       </div>
 
                       {/* Supervised Sections */}
-                      <div className="flex-shrink-0">
+                      <div className="flex-shrink-0 max-w-[180px]">
                         {teacher.supervisedSections.length > 0 ? (
-                          <div className="flex flex-wrap gap-1.5 justify-end">
-                            {teacher.supervisedSections.map((sec) => (
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {teacher.supervisedSections.slice(0, 2).map((sec) => (
                               <Badge
                                 key={sec.id}
                                 variant="outline"
-                                className="text-xs border-edutrack-primary/20 text-edutrack-primary bg-edutrack-primary/5"
+                                className="text-[10px] border-edutrack-primary/20 text-edutrack-primary bg-edutrack-primary/5"
                               >
                                 {sec.name}
                               </Badge>
                             ))}
+                            {teacher.supervisedSections.length > 2 && (
+                              <Badge variant="outline" className="text-[10px] border-gray-200 text-muted-foreground bg-gray-50">
+                                +{teacher.supervisedSections.length - 2}
+                              </Badge>
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
@@ -1339,7 +1349,7 @@ export default function DirectorDashboard() {
       </motion.div>
 
       {/* ─── 6 & 7. Recent Activities + Notifications ────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
         {/* Recent Activities */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
