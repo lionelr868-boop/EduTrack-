@@ -25,7 +25,6 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetTrigger,
 } from '@/components/ui/sheet';
 import {
   BookOpen,
@@ -48,6 +47,7 @@ import {
   MessageCircle,
   ShieldCheck,
   Sparkles,
+  TrendingUp,
 } from 'lucide-react';
 import {
   BarChart,
@@ -70,7 +70,7 @@ interface TodaySession {
   sectionName: string;
   yearName: string;
   level: string;
-  status: 'upcoming' | 'done' | 'cancelled';
+  status: 'upcoming' | 'done' | 'cancelled' | 'in_progress';
 }
 
 interface SupervisedSection {
@@ -79,6 +79,7 @@ interface SupervisedSection {
   yearName: string;
   level: string;
   studentCount: number;
+  attendanceRate?: number;
 }
 
 interface SectionWithStudents {
@@ -121,11 +122,24 @@ interface DashboardData {
     weeklyAttendanceRate: number;
     sessionsWithoutAttendance: number;
     totalStudents: number;
+    totalSessions?: number;
+    attendanceRate?: number;
+    presentCount?: number;
+    absentCount?: number;
+    lateCount?: number;
+    supervisedSectionsCount?: number;
   };
   weeklyAttendanceChart: { day: string; rate: number }[];
   recentAbsences: AbsenceAlert[];
   supervisedSections: SupervisedSection[];
   sectionsWithStudents: SectionWithStudents[];
+  performanceSummary?: {
+    activitiesThisMonth: number;
+    avgGrade: number;
+    perfectAttendanceCount: number;
+    sessionsCompletedThisWeek: number;
+    sessionsPlannedThisWeek: number;
+  };
 }
 
 // ─── Activity Type Labels ──────────────────────────────────
@@ -157,7 +171,7 @@ const activityTypeColors: Record<string, string> = {
 };
 
 // ─── Status Config ─────────────────────────────────────────
-const statusConfig = {
+const statusConfig: Record<string, { label: string; color: string; bgColor: string; dotColor: string }> = {
   done: {
     label: 'منجزة',
     color: 'text-emerald-700',
@@ -169,6 +183,12 @@ const statusConfig = {
     color: 'text-sky-700',
     bgColor: 'bg-sky-50 border-sky-200',
     dotColor: 'bg-sky-500',
+  },
+  in_progress: {
+    label: 'جارية',
+    color: 'text-amber-700',
+    bgColor: 'bg-amber-50 border-amber-200',
+    dotColor: 'bg-amber-500',
   },
   cancelled: {
     label: 'ملغاة',
@@ -219,23 +239,17 @@ function CustomTooltip({
 // ─── Loading Skeleton ──────────────────────────────────────
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6" dir="rtl">
-      <Skeleton className="h-36 rounded-xl" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-5" dir="rtl">
+      <Skeleton className="h-28 rounded-xl" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[1, 2, 3, 4].map((i) => (
-          <Skeleton key={i} className="h-28 rounded-xl" />
+          <Skeleton key={i} className="h-24 rounded-xl" />
         ))}
       </div>
-      <Skeleton className="h-14 rounded-xl" />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <Skeleton className="h-56 rounded-xl" />
-          <Skeleton className="h-48 rounded-xl" />
-        </div>
-        <div className="space-y-6">
-          <Skeleton className="h-56 rounded-xl" />
-          <Skeleton className="h-48 rounded-xl" />
-        </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <Skeleton className="h-72 rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
+        <Skeleton className="h-72 rounded-xl" />
       </div>
     </div>
   );
@@ -247,9 +261,7 @@ export default function TeacherDashboard() {
   const setCurrentView = useAppStore((s) => s.setCurrentView);
 
   // Dashboard data state
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(
-    null
-  );
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [recentActivities, setRecentActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -414,15 +426,15 @@ export default function TeacherDashboard() {
     recentAbsences,
     supervisedSections,
     sectionsWithStudents,
+    performanceSummary,
   } = dashboardData;
 
   // ─── Stats Config ────────────────────────────────────────
   const statsCards = [
     {
-      label: 'حضور الأسبوع',
+      label: 'نسبة الحضور',
       value: `${stats.weeklyAttendanceRate}%`,
       icon: <CheckCircle2 className="h-5 w-5" />,
-      color: 'emerald' as const,
       bgColor: 'bg-emerald-50',
       textColor: 'text-emerald-600',
       iconBg: 'bg-emerald-100',
@@ -432,7 +444,6 @@ export default function TeacherDashboard() {
       label: 'حصص بدون حضور',
       value: `${stats.sessionsWithoutAttendance}`,
       icon: <ClipboardCheck className="h-5 w-5" />,
-      color: 'amber' as const,
       bgColor: 'bg-amber-50',
       textColor: 'text-amber-600',
       iconBg: 'bg-amber-100',
@@ -442,7 +453,6 @@ export default function TeacherDashboard() {
       label: 'إجمالي التلاميذ',
       value: `${stats.totalStudents}`,
       icon: <Users className="h-5 w-5" />,
-      color: 'primary' as const,
       bgColor: 'bg-edutrack-primary/5',
       textColor: 'text-edutrack-primary',
       iconBg: 'bg-edutrack-primary/10',
@@ -452,39 +462,10 @@ export default function TeacherDashboard() {
       label: 'أقسام مشرفة',
       value: `${supervisedSections.length}`,
       icon: <ShieldCheck className="h-5 w-5" />,
-      color: 'teal' as const,
       bgColor: 'bg-teal-50',
       textColor: 'text-teal-600',
       iconBg: 'bg-teal-100',
       onClick: () => setCurrentView('teacher-students'),
-    },
-  ];
-
-  // ─── Quick Actions ───────────────────────────────────────
-  const quickActions = [
-    {
-      label: 'تسجيل الحضور',
-      icon: <ClipboardCheck className="h-4 w-4" />,
-      view: 'teacher-attendance' as ViewType,
-      className: 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border-emerald-200',
-    },
-    {
-      label: 'المراسلات',
-      icon: <MessageCircle className="h-4 w-4" />,
-      view: 'teacher-messages' as ViewType,
-      className: 'bg-purple-50 text-purple-700 hover:bg-purple-100 border-purple-200',
-    },
-    {
-      label: 'تلاميذي',
-      icon: <GraduationCap className="h-4 w-4" />,
-      view: 'teacher-students' as ViewType,
-      className: 'bg-sky-50 text-sky-700 hover:bg-sky-100 border-sky-200',
-    },
-    {
-      label: 'إبلاغ غياب',
-      icon: <AlertCircle className="h-4 w-4" />,
-      view: 'teacher-absence-request' as ViewType,
-      className: 'bg-amber-50 text-amber-700 hover:bg-amber-100 border-amber-200',
     },
   ];
 
@@ -493,17 +474,17 @@ export default function TeacherDashboard() {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
-      className="space-y-6"
+      className="space-y-5"
       dir="rtl"
     >
       {/* ═══════════════════════════════════════════════════════
-          Section 1: Welcome Header (Hero Banner)
+          Section 1: Welcome Header
           ═══════════════════════════════════════════════════════ */}
       <Card className="overflow-hidden border-0 rounded-xl">
-        <div className="bg-gradient-to-l from-edutrack-primary via-edutrack-dark to-edutrack-dark p-6">
+        <div className="bg-gradient-to-l from-edutrack-primary via-edutrack-dark to-edutrack-dark p-5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <Avatar className="h-14 w-14 border-2 border-white/20">
+              <Avatar className="h-12 w-12 border-2 border-white/20">
                 <AvatarFallback className="bg-white/20 text-white text-lg font-bold">
                   {user?.name
                     ?.split(' ')
@@ -513,10 +494,10 @@ export default function TeacherDashboard() {
                 </AvatarFallback>
               </Avatar>
               <div>
-                <h1 className="text-2xl lg:text-3xl font-bold text-white">
+                <h1 className="text-xl lg:text-2xl font-bold text-white">
                   مرحباً، {user?.name?.split(' ')[0] || 'الأستاذ'}
                 </h1>
-                <p className="text-sm text-white/70 mt-1">
+                <p className="text-sm text-white/70 mt-0.5">
                   إليك ملخص نشاطك اليوم
                 </p>
               </div>
@@ -530,13 +511,9 @@ export default function TeacherDashboard() {
                 <GraduationCap className="h-3.5 w-3.5" />
                 {levelLabels[teacher.level] || teacher.level}
               </Badge>
-              <Badge className="bg-white/15 text-white border-white/20 hover:bg-white/20 backdrop-blur-sm gap-1.5">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {todayDate}
-              </Badge>
               <Badge className="bg-white/25 text-white border-white/30 hover:bg-white/30 backdrop-blur-sm gap-1.5 font-semibold">
                 <Clock className="h-3.5 w-3.5" />
-                عدد الحصص اليوم: {todaySessions.length}
+                {todaySessions.length} حصة اليوم
               </Badge>
             </div>
           </div>
@@ -544,510 +521,558 @@ export default function TeacherDashboard() {
       </Card>
 
       {/* ═══════════════════════════════════════════════════════
-          Section 2: Stats Row (4 equal cards)
+          Section 2: Stats Row
           ═══════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statsCards.map((stat) => (
-          <Card
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {statsCards.map((stat, idx) => (
+          <motion.div
             key={stat.label}
-            className="border cursor-pointer hover:shadow-md transition-all duration-200"
-            onClick={stat.onClick}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.08, duration: 0.3 }}
           >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className={`p-2.5 rounded-xl ${stat.iconBg}`}>
-                  <span className={stat.textColor}>{stat.icon}</span>
-                </div>
-              </div>
-              <p className={`text-2xl font-bold font-inter ${stat.textColor}`}>
-                {stat.value}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════
-          Section 3: Quick Actions (horizontal strip)
-          ═══════════════════════════════════════════════════════ */}
-      <div className="flex flex-wrap gap-3">
-        {quickActions.map((action) => (
-          <Button
-            key={action.view}
-            variant="outline"
-            className={`h-10 rounded-full px-4 gap-2 text-sm font-semibold border ${action.className}`}
-            onClick={() => setCurrentView(action.view)}
-          >
-            {action.icon}
-            {action.label}
-          </Button>
-        ))}
-      </div>
-
-      {/* ═══════════════════════════════════════════════════════
-          Section 4: Two-column grid (balanced)
-          ═══════════════════════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ── Left Column ──────────────────────────────── */}
-        <div className="space-y-6">
-          {/* ── Today's Sessions ──────────────────────── */}
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-edutrack-primary" />
-                  حصص اليوم
-                  {todaySessions.length > 0 && (
-                    <Badge variant="secondary" className="text-xs">
-                      {todaySessions.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {todaySessions.length > 0 ? (
-                <ScrollArea className="max-h-72">
-                  <div className="space-y-2">
-                    {todaySessions.map((session) => {
-                      const status = statusConfig[session.status];
-                      return (
-                        <div
-                          key={session.id}
-                          className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
-                          onClick={() => setCurrentView('teacher-attendance')}
-                        >
-                          <div className="flex flex-col items-center min-w-[48px]">
-                            <span className="text-xs font-bold font-inter text-edutrack-dark">
-                              {session.startTime}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground font-inter">
-                              {session.endTime}
-                            </span>
-                          </div>
-                          <Separator orientation="vertical" className="h-10" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-edutrack-dark truncate">
-                              {session.subjectName}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {session.sectionName} {session.yearName}
-                            </p>
-                          </div>
-                          <Badge
-                            variant="outline"
-                            className={`${status.bgColor} ${status.color} border text-[10px] gap-1 px-2 py-0.5 shrink-0`}
-                          >
-                            <div
-                              className={`w-1.5 h-1.5 rounded-full ${status.dotColor}`}
-                            />
-                            {status.label}
-                          </Badge>
-                        </div>
-                      );
-                    })}
+            <Card
+              className="border cursor-pointer hover:shadow-md transition-all duration-200"
+              onClick={stat.onClick}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2.5 rounded-xl ${stat.iconBg}`}>
+                    <span className={stat.textColor}>{stat.icon}</span>
                   </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <BookOpen className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    لا توجد حصص مجدولة لهذا اليوم
-                  </p>
+                  <div>
+                    <p className={`text-2xl font-bold font-inter ${stat.textColor}`}>
+                      {stat.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{stat.label}</p>
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </motion.div>
+        ))}
+      </div>
 
-          {/* ── Absence Alerts ────────────────────────── */}
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-orange-500" />
-                تنبيهات الغياب
-                {recentAbsences.length > 0 && (
-                  <Badge variant="destructive" className="text-xs">
-                    {recentAbsences.length}
+      {/* ═══════════════════════════════════════════════════════
+          Section 3: Main Content Grid (3 columns on large screens)
+          ═══════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* ── Column 1: Today's Sessions ──────────────────────── */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-bold text-edutrack-dark flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-edutrack-primary" />
+                حصص اليوم
+                {todaySessions.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5">
+                    {todaySessions.length}
                   </Badge>
                 )}
               </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {recentAbsences.length > 0 ? (
-                <ScrollArea className="max-h-64">
-                  <div className="space-y-1">
-                    {recentAbsences.map((alert) => (
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {todaySessions.length > 0 ? (
+              <ScrollArea className="max-h-64">
+                <div className="space-y-2">
+                  {todaySessions.map((session) => {
+                    const status = statusConfig[session.status] || statusConfig.upcoming;
+                    return (
                       <div
-                        key={alert.id}
-                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-red-50/50 transition-colors cursor-pointer"
-                        onClick={() => setCurrentView('teacher-students')}
+                        key={session.id}
+                        className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                        onClick={() => setCurrentView('teacher-attendance')}
                       >
-                        <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        <div className="flex flex-col items-center min-w-[44px]">
+                          <span className="text-xs font-bold font-inter text-edutrack-dark">
+                            {session.startTime}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-inter">
+                            {session.endTime}
+                          </span>
+                        </div>
+                        <Separator orientation="vertical" className="h-9" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-edutrack-dark">
-                            <span className="font-semibold">
-                              {alert.studentName}
-                            </span>{' '}
-                            غاب عن حصة {alert.subjectName}
+                          <p className="text-sm font-semibold text-edutrack-dark truncate">
+                            {session.subjectName}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {formatDateArabic(alert.date)}
+                          <p className="text-[11px] text-muted-foreground">
+                            {session.sectionName}
                           </p>
                         </div>
+                        <Badge
+                          variant="outline"
+                          className={`${status.bgColor} ${status.color} border text-[10px] gap-1 px-1.5 py-0 shrink-0`}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full ${status.dotColor}`} />
+                          {status.label}
+                        </Badge>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <CheckCircle2 className="h-10 w-10 text-emerald-400 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    لا توجد غيابات حديثة
-                  </p>
+                    );
+                  })}
                 </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-6">
+                <BookOpen className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  لا توجد حصص مجدولة لهذا اليوم
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Column 2: Weekly Attendance Chart ─────────────── */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold text-edutrack-dark flex items-center gap-2">
+              <BarChart3 className="h-4 w-4 text-edutrack-primary" />
+              نسبة الحضور الأسبوعية
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-52">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={weeklyAttendanceChart}
+                  margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="#94a3b8" />
+                  <YAxis
+                    tick={{ fontSize: 10 }}
+                    stroke="#94a3b8"
+                    domain={[0, 100]}
+                    tickFormatter={(value) => `${value}%`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="rate" name="نسبة الحضور" radius={[4, 4, 0, 0]} maxBarSize={36}>
+                    {weeklyAttendanceChart.map((entry, index) => (
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          entry.rate >= 90
+                            ? '#10B981'
+                            : entry.rate >= 80
+                              ? '#F97316'
+                              : entry.rate > 0
+                                ? '#EF4444'
+                                : '#E2E8F0'
+                        }
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── Column 3: Absence Alerts ──────────────────────── */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold text-edutrack-dark flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              تنبيهات الغياب
+              {recentAbsences.length > 0 && (
+                <Badge variant="destructive" className="text-[10px] px-1.5">
+                  {recentAbsences.length}
+                </Badge>
               )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ── Right Column ─────────────────────────────── */}
-        <div className="space-y-6">
-          {/* ── Weekly Attendance Chart ──────────────── */}
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-edutrack-primary" />
-                نسبة الحضور الأسبوعية
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">هذا الأسبوع</p>
-            </CardHeader>
-            <CardContent>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={weeklyAttendanceChart}
-                    margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="#f0f0f0"
-                    />
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 11 }}
-                      stroke="#94a3b8"
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11 }}
-                      stroke="#94a3b8"
-                      domain={[0, 100]}
-                      tickFormatter={(value) => `${value}%`}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar
-                      dataKey="rate"
-                      name="نسبة الحضور"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={40}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {recentAbsences.length > 0 ? (
+              <ScrollArea className="max-h-64">
+                <div className="space-y-1">
+                  {recentAbsences.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-red-50/50 transition-colors cursor-pointer"
+                      onClick={() => setCurrentView('teacher-students')}
                     >
-                      {weeklyAttendanceChart.map((entry, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={
-                            entry.rate >= 90
-                              ? '#10B981'
-                              : entry.rate >= 80
-                                ? '#F97316'
-                                : entry.rate > 0
-                                  ? '#EF4444'
-                                  : '#E2E8F0'
-                          }
-                        />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* ── Recent Activities ────────────────────── */}
-          <Card className="shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold text-edutrack-dark flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-edutrack-primary" />
-                  آخر الأنشطة
-                </CardTitle>
-                <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
-                  <SheetTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-xs h-8 border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      إضافة نشاط
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto" dir="rtl">
-                    <SheetHeader className="mb-4">
-                      <SheetTitle className="text-right flex items-center gap-2 text-edutrack-dark">
-                        <Sparkles className="h-5 w-5 text-edutrack-primary" />
-                        إضافة نشاط جديد
-                      </SheetTitle>
-                    </SheetHeader>
-                    <div className="space-y-4 px-4 pb-6">
-                      {/* Section Select */}
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">
-                          القسم <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={selectedSectionId}
-                          onValueChange={(value) => {
-                            setSelectedSectionId(value);
-                            setSelectedStudentId('');
-                          }}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="اختر القسم" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {sectionsWithStudents.map((section) => (
-                              <SelectItem
-                                key={section.id}
-                                value={section.id}
-                              >
-                                {section.name} — {section.yearName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                      <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-edutrack-dark">
+                          <span className="font-semibold">{alert.studentName}</span>{' '}
+                          غاب عن حصة {alert.subjectName}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {formatDateArabic(alert.date)}
+                        </p>
                       </div>
-
-                      {/* Student Select */}
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">
-                          الطالب <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={selectedStudentId}
-                          onValueChange={setSelectedStudentId}
-                          disabled={!selectedSectionId}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue
-                              placeholder={
-                                selectedSectionId
-                                  ? 'اختر الطالب'
-                                  : 'اختر القسم أولاً'
-                              }
-                            />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {getStudentsForSection().map((student) => (
-                              <SelectItem
-                                key={student.id}
-                                value={student.id}
-                              >
-                                {student.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Activity Type Select */}
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">
-                          نوع النشاط <span className="text-red-500">*</span>
-                        </Label>
-                        <Select
-                          value={activityType}
-                          onValueChange={setActivityType}
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="اختر نوع النشاط" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {Object.entries(activityTypeLabels).map(
-                              ([key, label]) => (
-                                <SelectItem key={key} value={key}>
-                                  <div className="flex items-center gap-2">
-                                    {activityTypeIcons[key]}
-                                    {label}
-                                  </div>
-                                </SelectItem>
-                              )
-                            )}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Title */}
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">
-                          العنوان <span className="text-red-500">*</span>
-                        </Label>
-                        <Input
-                          value={activityTitle}
-                          onChange={(e) => setActivityTitle(e.target.value)}
-                          placeholder="مثال: اختبار الفصل الأول"
-                          className="text-right"
-                        />
-                      </div>
-
-                      {/* Description */}
-                      <div className="space-y-1.5">
-                        <Label className="text-sm font-medium">الوصف</Label>
-                        <Textarea
-                          value={activityDescription}
-                          onChange={(e) =>
-                            setActivityDescription(e.target.value)
-                          }
-                          placeholder="أضف وصفاً اختيارياً..."
-                          className="text-right min-h-20"
-                        />
-                      </div>
-
-                      {/* Grades */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            العلامة
-                          </Label>
-                          <Input
-                            type="number"
-                            value={activityGrade}
-                            onChange={(e) => setActivityGrade(e.target.value)}
-                            placeholder="0"
-                            className="font-inter text-right"
-                            min="0"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-sm font-medium">
-                            العلامة القصوى
-                          </Label>
-                          <Input
-                            type="number"
-                            value={activityMaxGrade}
-                            onChange={(e) =>
-                              setActivityMaxGrade(e.target.value)
-                            }
-                            placeholder="20"
-                            className="font-inter text-right"
-                            min="0"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Submit Button */}
-                      <Button
-                        onClick={handleActivitySubmit}
-                        disabled={submitting}
-                        className="w-full bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2"
-                      >
-                        {submitting ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            جارٍ الإضافة...
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-4 w-4" />
-                            إضافة النشاط
-                          </>
-                        )}
-                      </Button>
                     </div>
-                  </SheetContent>
-                </Sheet>
+                  ))}
+                </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-6">
+                <CheckCircle2 className="h-10 w-10 text-emerald-300 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">
+                  لا توجد غيابات حديثة
+                </p>
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              {recentActivities.length > 0 ? (
-                <ScrollArea className="max-h-64">
-                  <div className="space-y-2">
-                    {recentActivities.map((activity) => (
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          Section 4: Activity Log + Performance Summary
+          ═══════════════════════════════════════════════════════ */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* ── Activity Log (takes 2 columns) ─────────────────── */}
+        <Card className="shadow-sm lg:col-span-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-bold text-edutrack-dark flex items-center gap-2">
+                <Activity className="h-4 w-4 text-edutrack-primary" />
+                سجل الأنشطة
+                {recentActivities.length > 0 && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5">
+                    {recentActivities.length}
+                  </Badge>
+                )}
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs h-8 border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
+                onClick={() => setSheetOpen(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                إضافة نشاط
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {recentActivities.length > 0 ? (
+              <ScrollArea className="max-h-72">
+                <div className="space-y-1.5">
+                  {recentActivities.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors"
+                    >
                       <div
-                        key={activity.id}
-                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-muted/30 transition-colors"
+                        className={`flex-shrink-0 p-1.5 rounded-lg ${
+                          activityTypeColors[activity.type] ||
+                          'bg-gray-50 text-gray-700 border border-gray-200'
+                        }`}
                       >
-                        <div
-                          className={`flex-shrink-0 p-1.5 rounded-lg ${
-                            activityTypeColors[activity.type] ||
-                            'bg-gray-50 text-gray-700 border border-gray-200'
-                          }`}
-                        >
-                          {activityTypeIcons[activity.type] || (
-                            <FileText className="h-4 w-4" />
+                        {activityTypeIcons[activity.type] || <FileText className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-edutrack-dark truncate">
+                            {activity.title}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1.5 py-0 shrink-0 ${
+                              activityTypeColors[activity.type] ||
+                              'bg-gray-50 text-gray-700 border-gray-200'
+                            }`}
+                          >
+                            {activityTypeLabels[activity.type] || activity.type}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-muted-foreground">
+                            {activity.student?.name || '—'} — {activity.section?.name || '—'}
+                          </p>
+                          {activity.grade !== null && activity.maxGrade !== null && (
+                            <span className="text-xs font-bold font-inter text-edutrack-primary">
+                              {activity.grade}/{activity.maxGrade}
+                            </span>
                           )}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <p className="text-sm font-semibold text-edutrack-dark truncate">
-                              {activity.title}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] px-1.5 py-0 shrink-0 ${
-                                activityTypeColors[activity.type] ||
-                                'bg-gray-50 text-gray-700 border-gray-200'
-                              }`}
-                            >
-                              {activityTypeLabels[activity.type] ||
-                                activity.type}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground">
-                            {activity.student?.name || '—'} —{' '}
-                            {activity.section?.name || '—'}
-                          </p>
-                          {activity.grade !== null &&
-                            activity.maxGrade !== null && (
-                              <div className="flex items-center gap-1 mt-1">
-                                <span className="text-xs font-bold font-inter text-edutrack-primary">
-                                  {activity.grade}
-                                </span>
-                                <span className="text-xs text-muted-foreground font-inter">
-                                  / {activity.maxGrade}
-                                </span>
-                              </div>
-                            )}
-                        </div>
-                        <div className="flex-shrink-0">
-                          <p className="text-[10px] text-muted-foreground whitespace-nowrap">
-                            {formatDateArabic(activity.createdAt)}
-                          </p>
-                        </div>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              ) : (
-                <div className="text-center py-8">
-                  <FileText className="h-10 w-10 text-muted-foreground/40 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground mb-2">
-                    لم تُضاف أي أنشطة بعد
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
-                    onClick={() => setSheetOpen(true)}
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    أضف أول نشاط
-                  </Button>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                        {formatDateArabic(activity.createdAt)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </ScrollArea>
+            ) : (
+              <div className="text-center py-8">
+                <FileText className="h-10 w-10 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  لم تُضاف أي أنشطة بعد
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-xs border-edutrack-primary/20 text-edutrack-primary hover:bg-edutrack-primary/5"
+                  onClick={() => setSheetOpen(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  أضف أول نشاط
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ── Performance Summary ──────────────────────────── */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-bold text-edutrack-dark flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-edutrack-primary" />
+              ملخص الأداء
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-3">
+            {/* Performance metrics */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-50/70">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span className="text-xs text-emerald-800">حضور مثالي</span>
+                </div>
+                <span className="text-sm font-bold font-inter text-emerald-700">
+                  {performanceSummary?.perfectAttendanceCount || 0}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-edutrack-primary/5">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-edutrack-primary" />
+                  <span className="text-xs text-edutrack-dark">أنشطة هذا الشهر</span>
+                </div>
+                <span className="text-sm font-bold font-inter text-edutrack-primary">
+                  {performanceSummary?.activitiesThisMonth || 0}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-50/70">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-amber-600" />
+                  <span className="text-xs text-amber-800">متوسط العلامات</span>
+                </div>
+                <span className="text-sm font-bold font-inter text-amber-700">
+                  {performanceSummary?.avgGrade || 0}%
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 rounded-lg bg-sky-50/70">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-sky-600" />
+                  <span className="text-xs text-sky-800">حصص مكتملة</span>
+                </div>
+                <span className="text-sm font-bold font-inter text-sky-700">
+                  {performanceSummary?.sessionsCompletedThisWeek || 0}/{performanceSummary?.sessionsPlannedThisWeek || 0}
+                </span>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* Quick Actions */}
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-medium text-muted-foreground">إجراءات سريعة</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] gap-1 bg-emerald-50/50 text-emerald-700 border-emerald-200/50 hover:bg-emerald-100"
+                  onClick={() => setCurrentView('teacher-attendance')}
+                >
+                  <ClipboardCheck className="h-3 w-3" />
+                  الحضور
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] gap-1 bg-purple-50/50 text-purple-700 border-purple-200/50 hover:bg-purple-100"
+                  onClick={() => setCurrentView('teacher-messages')}
+                >
+                  <MessageCircle className="h-3 w-3" />
+                  المراسلات
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] gap-1 bg-sky-50/50 text-sky-700 border-sky-200/50 hover:bg-sky-100"
+                  onClick={() => setCurrentView('teacher-students')}
+                >
+                  <GraduationCap className="h-3 w-3" />
+                  التلاميذ
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-[11px] gap-1 bg-amber-50/50 text-amber-700 border-amber-200/50 hover:bg-amber-100"
+                  onClick={() => setCurrentView('teacher-absence-request')}
+                >
+                  <AlertCircle className="h-3 w-3" />
+                  إبلاغ غياب
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          Sheet: Add Activity Form (OUTSIDE the card structure)
+          ═══════════════════════════════════════════════════════ */}
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="left" className="w-full sm:max-w-md overflow-y-auto" dir="rtl">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="text-right flex items-center gap-2 text-edutrack-dark">
+              <Sparkles className="h-5 w-5 text-edutrack-primary" />
+              إضافة نشاط جديد
+            </SheetTitle>
+          </SheetHeader>
+          <div className="space-y-4 px-4 pb-6">
+            {/* Section Select */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                القسم <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={selectedSectionId}
+                onValueChange={(value) => {
+                  setSelectedSectionId(value);
+                  setSelectedStudentId('');
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="اختر القسم" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sectionsWithStudents.map((section) => (
+                    <SelectItem key={section.id} value={section.id}>
+                      {section.name} — {section.yearName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Student Select */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                الطالب <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={selectedStudentId}
+                onValueChange={setSelectedStudentId}
+                disabled={!selectedSectionId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue
+                    placeholder={selectedSectionId ? 'اختر الطالب' : 'اختر القسم أولاً'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {getStudentsForSection().map((student) => (
+                    <SelectItem key={student.id} value={student.id}>
+                      {student.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Activity Type Select */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                نوع النشاط <span className="text-red-500">*</span>
+              </Label>
+              <Select value={activityType} onValueChange={setActivityType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="اختر نوع النشاط" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(activityTypeLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      <div className="flex items-center gap-2">
+                        {activityTypeIcons[key]}
+                        {label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Title */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">
+                العنوان <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                value={activityTitle}
+                onChange={(e) => setActivityTitle(e.target.value)}
+                placeholder="مثال: اختبار الفصل الأول"
+                className="text-right"
+              />
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">الوصف</Label>
+              <Textarea
+                value={activityDescription}
+                onChange={(e) => setActivityDescription(e.target.value)}
+                placeholder="أضف وصفاً اختيارياً..."
+                className="text-right min-h-20"
+              />
+            </div>
+
+            {/* Grades */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">العلامة</Label>
+                <Input
+                  type="number"
+                  value={activityGrade}
+                  onChange={(e) => setActivityGrade(e.target.value)}
+                  placeholder="0"
+                  className="font-inter text-right"
+                  min="0"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">العلامة القصوى</Label>
+                <Input
+                  type="number"
+                  value={activityMaxGrade}
+                  onChange={(e) => setActivityMaxGrade(e.target.value)}
+                  placeholder="20"
+                  className="font-inter text-right"
+                  min="0"
+                />
+              </div>
+            </div>
+
+            {/* Submit Button */}
+            <Button
+              onClick={handleActivitySubmit}
+              disabled={submitting}
+              className="w-full bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  جارٍ الإضافة...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  إضافة النشاط
+                </>
+              )}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </motion.div>
   );
 }
