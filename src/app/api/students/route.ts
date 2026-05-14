@@ -66,7 +66,17 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, level, institutionId, parentId, sectionId } = body;
+    const {
+      name,
+      level,
+      institutionId,
+      parentId,
+      sectionId,
+      dateOfBirth,
+      gender,
+      phone,
+      address,
+    } = body;
 
     if (!name || !level || !institutionId) {
       return NextResponse.json({ error: 'name, level, and institutionId are required' }, { status: 400 });
@@ -79,6 +89,10 @@ export async function POST(request: NextRequest) {
         institutionId,
         parentId: parentId || null,
         sectionId: sectionId || null,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        gender: gender || null,
+        phone: phone || null,
+        address: address || null,
       },
       include: {
         parent: {

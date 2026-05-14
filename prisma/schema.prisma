@@ -93,6 +93,10 @@ model Student {
   parentId      String?
   institutionId String
   sectionId     String?  // Link to section
+  dateOfBirth   DateTime?
+  gender        String?  // ذكر / أنثى
+  phone         String?
+  address       String?
   enrollmentDate DateTime @default(now())
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

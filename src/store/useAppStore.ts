@@ -13,6 +13,7 @@ export type ViewType =
   | 'director-reports'
   | 'director-settings'
   | 'director-notifications'
+  | 'director-sections'
   | 'teacher-dashboard'
   | 'teacher-schedule'
   | 'teacher-attendance'

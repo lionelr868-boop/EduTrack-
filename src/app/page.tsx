@@ -27,6 +27,7 @@ const ParentAbsencesView = dynamic(() => import('@/components/edutrack/ParentAbs
 const ParentInvoicesView = dynamic(() => import('@/components/edutrack/ParentInvoicesView'), { ssr: false });
 const ParentNotificationsView = dynamic(() => import('@/components/edutrack/ParentNotificationsView'), { ssr: false });
 const NotificationsView = dynamic(() => import('@/components/edutrack/NotificationsView'), { ssr: false });
+const SectionsView = dynamic(() => import('@/components/edutrack/SectionsView'), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -70,6 +71,8 @@ export default function Home() {
         return <DashboardLayout><SettingsView /></DashboardLayout>;
       case 'director-notifications':
         return <DashboardLayout><NotificationsView /></DashboardLayout>;
+      case 'director-sections':
+        return <DashboardLayout><SectionsView /></DashboardLayout>;
 
       // Teacher views
       case 'teacher-dashboard':

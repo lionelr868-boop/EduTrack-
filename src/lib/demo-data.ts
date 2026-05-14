@@ -40,6 +40,7 @@ export interface DemoSession {
   status: string;
   level: string;
   repeatType: string;
+  sectionId?: string;
   cancelReason?: string;
 }
 

@@ -41,6 +41,12 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+interface SectionOption {
+  id: string;
+  name: string;
+  year: { name: string; level: string };
+}
+
 interface ScheduleViewProps {
   mode: 'director' | 'teacher';
 }
@@ -54,6 +60,8 @@ export default function ScheduleView({ mode }: ScheduleViewProps) {
   const [filterTeacher, setFilterTeacher] = useState<string>('all');
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterSubject, setFilterSubject] = useState<string>('all');
+  const [filterSection, setFilterSection] = useState<string>('all');
+  const [sections, setSections] = useState<SectionOption[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editSession, setEditSession] = useState<DemoSession | null>(null);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -75,6 +83,19 @@ export default function ScheduleView({ mode }: ScheduleViewProps) {
   // Current day of week for highlighting
   const today = currentTime.getDay();
 
+  // Fetch sections from API
+  useEffect(() => {
+    const institutionId = user?.institutionId || 'inst1';
+    fetch(`/api/sections?institutionId=${institutionId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.sections) setSections(data.sections);
+      })
+      .catch(() => {
+        // Silently fail — sections filter just won't have options
+      });
+  }, [user?.institutionId]);
+
   // Update time every minute
   useEffect(() => {
     const interval = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -91,8 +112,9 @@ export default function ScheduleView({ mode }: ScheduleViewProps) {
     if (filterTeacher !== 'all') result = result.filter(s => s.teacherId === filterTeacher);
     if (filterLevel !== 'all') result = result.filter(s => s.level === filterLevel);
     if (filterSubject !== 'all') result = result.filter(s => s.subjectId === filterSubject);
+    if (filterSection !== 'all') result = result.filter(s => s.sectionId === filterSection);
     return result;
-  }, [sessions, filterTeacher, filterLevel, filterSubject, mode, user]);
+  }, [sessions, filterTeacher, filterLevel, filterSubject, filterSection, mode, user]);
 
   // Available teachers for selected subject
   const availableTeachers = useMemo(() => {
@@ -358,7 +380,23 @@ export default function ScheduleView({ mode }: ScheduleViewProps) {
             </SelectContent>
           </Select>
 
-          {(filterTeacher !== 'all' || filterLevel !== 'all' || filterSubject !== 'all') && (
+          <Select value={filterSection} onValueChange={setFilterSection}>
+            <SelectTrigger className="w-[180px] h-9 text-sm rounded-lg">
+              <SelectValue placeholder="القسم" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">جميع الأقسام</SelectItem>
+              {sections
+                .filter(sec => filterLevel === 'all' || sec.year.level === filterLevel)
+                .map(sec => (
+                  <SelectItem key={sec.id} value={sec.id}>
+                    {sec.name} ({sec.year.name})
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+
+          {(filterTeacher !== 'all' || filterLevel !== 'all' || filterSubject !== 'all' || filterSection !== 'all') && (
             <Button
               variant="ghost"
               size="sm"
@@ -366,6 +404,7 @@ export default function ScheduleView({ mode }: ScheduleViewProps) {
                 setFilterTeacher('all');
                 setFilterLevel('all');
                 setFilterSubject('all');
+                setFilterSection('all');
               }}
               className="h-9 text-xs text-edutrack-danger"
             >

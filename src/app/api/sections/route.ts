@@ -1,5 +1,82 @@
 import { db } from '@/lib/db';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+// POST /api/sections - Create a new section
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { name, yearId, institutionId, capacity, supervisorId } = body;
+
+    // Validation
+    if (!name || !name.trim()) {
+      return NextResponse.json({ error: 'اسم القسم مطلوب' }, { status: 400 });
+    }
+    if (!yearId) {
+      return NextResponse.json({ error: 'السنة الدراسية مطلوبة' }, { status: 400 });
+    }
+    if (!institutionId) {
+      return NextResponse.json({ error: 'معرف المؤسسة مطلوب' }, { status: 400 });
+    }
+
+    // Verify year exists and belongs to the institution
+    const year = await db.year.findFirst({
+      where: { id: yearId, institutionId },
+    });
+    if (!year) {
+      return NextResponse.json({ error: 'السنة الدراسية غير موجودة أو لا تنتمي لهذه المؤسسة' }, { status: 400 });
+    }
+
+    // Validate supervisor if provided
+    if (supervisorId) {
+      const supervisor = await db.teacher.findFirst({
+        where: { id: supervisorId, institutionId },
+      });
+      if (!supervisor) {
+        return NextResponse.json({ error: 'المشرف غير موجود أو لا ينتمي لهذه المؤسسة' }, { status: 400 });
+      }
+    }
+
+    const section = await db.section.create({
+      data: {
+        name: name.trim(),
+        yearId,
+        institutionId,
+        capacity: capacity || 30,
+        supervisorId: supervisorId || null,
+      },
+      include: {
+        year: { select: { id: true, name: true, level: true, order: true } },
+        supervisor: {
+          include: {
+            user: { select: { name: true } },
+            subject: { select: { name: true } },
+          },
+        },
+        students: { select: { id: true } },
+      },
+    });
+
+    const mapped = {
+      id: section.id,
+      name: section.name,
+      capacity: section.capacity,
+      year: section.year,
+      supervisor: section.supervisor
+        ? {
+            id: section.supervisor.id,
+            name: section.supervisor.user.name,
+            subject: section.supervisor.subject.name,
+          }
+        : null,
+      studentCount: section.students.length,
+    };
+
+    return NextResponse.json({ section: mapped }, { status: 201 });
+  } catch (error) {
+    console.error('Error creating section:', error);
+    return NextResponse.json({ error: 'فشل في إنشاء القسم' }, { status: 500 });
+  }
+}
 
 export async function GET(request: Request) {
   try {
