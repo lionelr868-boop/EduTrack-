@@ -82,34 +82,6 @@ function usePlatformStats() {
 }
 
 // ========================
-// Landing Content Hook
-// ========================
-
-interface LandingContentItem {
-  section: string;
-  title: string | null;
-  subtitle: string | null;
-  content: string | null;
-}
-
-function useLandingContent() {
-  const [content, setContent] = useState<LandingContentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetch('/api/landing')
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) setContent(data);
-      })
-      .catch(err => console.error('Failed to fetch landing content:', err))
-      .finally(() => setLoading(false));
-  }, []);
-
-  return { content, loading };
-}
-
-// ========================
 // Animation Variants
 // ========================
 
@@ -400,12 +372,7 @@ function NavBar() {
 
 function HeroSection() {
   const { setCurrentView, setDemoMode } = useAppStore();
-  const { stats, loading: statsLoading } = usePlatformStats();
-  const { content } = useLandingContent();
-
-  const heroContent = content.find(c => c.section === 'hero');
-  const heroTitle = heroContent?.title || 'تسيير مؤسستك التعليمية بذكاء';
-  const heroSubtitle = heroContent?.subtitle || 'منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير صُممت خصيصاً للمؤسسات التعليمية في الجزائر';
+  const { stats, loading } = usePlatformStats();
 
   // Use real data or sensible defaults while loading
   const totalInstitutions = stats?.totalInstitutions ?? 0;
@@ -477,7 +444,7 @@ function HeroSection() {
               className="mb-6 gap-1.5 rounded-full border-edutrack-primary/20 bg-edutrack-primary/5 px-4 py-1.5 text-edutrack-primary sm:mb-8"
             >
               <Activity className="h-3.5 w-3.5" />
-              <span>{statsLoading ? 'جاري التحميل...' : `${totalInstitutions} مؤسسة نشطة الآن`}</span>
+              <span>{loading ? 'جاري التحميل...' : `${totalInstitutions} مؤسسة نشطة الآن`}</span>
             </Badge>
           </motion.div>
 
@@ -488,15 +455,9 @@ function HeroSection() {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="mb-4 text-center text-3xl leading-tight font-extrabold sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            {heroTitle.includes('تسيير مؤسستك') ? (
-              <>
-                <span className="gradient-text">تسيير مؤسستك</span>
-                <br />
-                <span className="text-edutrack-dark">التعليمية بذكاء</span>
-              </>
-            ) : (
-              <span className="gradient-text">{heroTitle}</span>
-            )}
+            <span className="gradient-text">تسيير مؤسستك</span>
+            <br />
+            <span className="text-edutrack-dark">التعليمية بذكاء</span>
           </motion.h1>
 
           {/* Subheading */}
@@ -506,7 +467,9 @@ function HeroSection() {
             transition={{ duration: 0.7, delay: 0.35 }}
             className="mb-8 max-w-2xl text-center text-base leading-relaxed text-edutrack-dark/60 sm:mb-10 sm:text-lg md:text-xl"
           >
-            {heroSubtitle}
+            منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير
+            <br className="hidden sm:block" />
+            صُممت خصيصاً للمؤسسات التعليمية في الجزائر
           </motion.p>
 
           {/* CTA Buttons */}
@@ -625,7 +588,7 @@ function HeroSection() {
                         <div className="h-2 w-20 rounded-full bg-white/20 sm:h-3 sm:w-28" />
                         <div className="flex items-center gap-1 text-[8px] text-white/40 sm:text-[10px]">
                           <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                          {statsLoading ? '...' : `${totalRevenue.toLocaleString()} دج`}
+                          {loading ? '...' : `${totalRevenue.toLocaleString()} دج`}
                         </div>
                       </div>
                       <div className="flex items-end gap-1 sm:gap-1.5">
@@ -853,7 +816,7 @@ const plans = [
   {
     name: 'أساسي',
     subtitle: 'للمؤسسات المتوسطة',
-    price: '7,000',
+    price: '5,000',
     description: 'الأكثر شعبية للمؤسسات النامية',
     popular: true,
     features: [
@@ -989,30 +952,6 @@ function PricingCard({
 }
 
 function PricingSection() {
-  const { content } = useLandingContent();
-  
-  // Try to get dynamic pricing data
-  const pricingContent = content.find(c => c.section === 'pricing');
-  let dynamicPlans = plans;
-  
-  if (pricingContent?.content) {
-    try {
-      const parsed = JSON.parse(pricingContent.content);
-      if (Array.isArray(parsed)) {
-        dynamicPlans = parsed.map(p => ({
-          name: p.name,
-          subtitle: p.subtitle || (p.plan === 'FREE' ? 'للمؤسسات الصغيرة' : p.plan === 'BASIC' ? 'للمؤسسات المتوسطة' : 'للمؤسسات الكبيرة'),
-          price: p.price.toLocaleString(),
-          description: p.description || (p.plan === 'FREE' ? 'ابدأ مجاناً واستكشف المنصة' : p.plan === 'BASIC' ? 'الأكثر شعبية للمؤسسات النامية' : 'حل شامل للمؤسسات الكبرى'),
-          popular: p.highlighted || p.plan === 'BASIC',
-          features: p.features || []
-        }));
-      }
-    } catch (e) {
-      console.error('Error parsing dynamic pricing:', e);
-    }
-  }
-
   return (
     <AnimatedSection id="pricing" className="relative bg-white py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -1023,23 +962,19 @@ function PricingSection() {
             className="mb-4 gap-1.5 rounded-full border-edutrack-secondary/20 bg-edutrack-secondary/5 px-4 py-1.5 text-edutrack-secondary"
           >
             <Receipt className="h-3.5 w-3.5" />
-            <span>{pricingContent?.title || 'خطط الأسعار'}</span>
+            <span>خطط الأسعار</span>
           </Badge>
           <h2 className="mb-4 text-2xl font-extrabold text-edutrack-dark sm:text-4xl">
-            {pricingContent?.subtitle ? (
-              <span dangerouslySetInnerHTML={{ __html: pricingContent.subtitle.replace('مرنة ومناسبة', '<span class="gradient-text">مرنة ومناسبة</span>') }} />
-            ) : (
-              <>أسعار <span className="gradient-text">مرنة ومناسبة</span></>
-            )}
+            أسعار <span className="gradient-text">مرنة ومناسبة</span>
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-edutrack-dark/50 sm:text-base">
-            {pricingContent?.subtitle ? '' : 'اختر الخطة المناسبة لحجم مؤسستك مع إمكانية الترقية في أي وقت'}
+            اختر الخطة المناسبة لحجم مؤسستك مع إمكانية الترقية في أي وقت
           </p>
         </motion.div>
 
         {/* Pricing Cards */}
         <div className="grid gap-6 sm:gap-4 lg:grid-cols-3 lg:gap-6">
-          {dynamicPlans.map((plan, index) => (
+          {plans.map((plan, index) => (
             <PricingCard key={plan.name} plan={plan} index={index} />
           ))}
         </div>
