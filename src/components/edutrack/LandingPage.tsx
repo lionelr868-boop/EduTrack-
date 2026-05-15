@@ -455,7 +455,7 @@ function HeroSection() {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="mb-4 text-center text-3xl leading-tight font-extrabold sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            <span className="gradient-text">تسيّر مؤسستك</span>
+            <span className="gradient-text">تسيير مؤسستك</span>
             <br />
             <span className="text-edutrack-dark">التعليمية بذكاء</span>
           </motion.h1>

@@ -23,6 +23,9 @@ import {
   ArrowLeft,
   Zap,
   X,
+  ClipboardCheck,
+  Calendar,
+  TrendingUp,
 } from 'lucide-react';
 
 type RoleType = 'DIRECTOR' | 'TEACHER' | 'PARENT';
@@ -38,6 +41,75 @@ const roleConfig: Record<RoleType, { label: string; icon: React.ReactNode; color
   TEACHER: { label: 'أستاذ', icon: <BookOpen className="h-4 w-4" />, color: 'bg-edutrack-secondary' },
   PARENT: { label: 'ولي أمر', icon: <Users className="h-4 w-4" />, color: 'bg-emerald-500' },
 };
+
+// ========================
+// Platform Stats Banner (Real Data)
+// ========================
+
+interface PlatformStats {
+  totalInstitutions: number;
+  totalStudents: number;
+  totalTeachers: number;
+  totalSessions: number;
+  totalParents: number;
+  attendanceRate: number;
+  totalRevenue: number;
+}
+
+function PlatformStatsBanner() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch('/api/platform/stats');
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setStats(data);
+        }
+      } catch {
+        // silently fail - stats are decorative
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const statItems = [
+    { icon: <ClipboardCheck className="h-4 w-4" />, value: stats?.totalInstitutions ?? 0, label: 'مؤسسة تعليمية' },
+    { icon: <Users className="h-4 w-4" />, value: stats?.totalStudents ?? 0, label: 'تلميذ مسجّل' },
+    { icon: <BookOpen className="h-4 w-4" />, value: stats?.totalTeachers ?? 0, label: 'أستاذ نشط' },
+    { icon: <TrendingUp className="h-4 w-4" />, value: stats?.attendanceRate ?? 0, label: '% حضور', suffix: '%' },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 1.2, duration: 0.8 }}
+      className="mt-10 w-full max-w-md"
+    >
+      <div className="grid grid-cols-4 gap-3">
+        {statItems.map((item, index) => (
+          <motion.div
+            key={item.label}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.4 + index * 0.1, duration: 0.5 }}
+            className="bg-white/5 backdrop-blur-md rounded-xl p-3 border border-white/10 text-center"
+          >
+            <div className="text-edutrack-secondary mb-1 flex justify-center">{item.icon}</div>
+            <div className="text-white font-bold text-sm font-inter">
+              {item.value.toLocaleString()}{item.suffix || ''}
+            </div>
+            <div className="text-white/40 text-[10px] mt-0.5">{item.label}</div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 export default function LoginPage() {
   const { setCurrentView, setUser, demoMode, setDemoMode } = useAppStore();
@@ -458,15 +530,8 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* Bottom decoration */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
-            className="mt-12 text-center"
-          >
-            <p className="text-white/40 text-xs">مستخدم من قبل أكثر من 500 مؤسسة تعليمية</p>
-          </motion.div>
+          {/* Real Platform Stats */}
+          <PlatformStatsBanner />
         </div>
       </motion.div>
     </div>
