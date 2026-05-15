@@ -236,23 +236,9 @@ export async function GET() {
     return NextResponse.json(stats);
   } catch (error) {
     console.error('Platform stats error:', error);
-    // Return empty stats instead of 500
-    return NextResponse.json({
-      totalInstitutions: 0,
-      totalStudents: 0,
-      totalTeachers: 0,
-      totalSessions: 0,
-      totalParents: 0,
-      attendanceRate: 0,
-      totalRevenue: 0,
-      paidInvoices: 0,
-      pendingInvoices: 0,
-      totalInvoices: 0,
-      recentInstitutions: [],
-      topSubjects: [],
-      monthlyGrowth: [],
-      institutionsByPlan: [],
-      liveActivities: [],
-    });
+    return NextResponse.json(
+      { error: 'خطأ في الخادم' },
+      { status: 500 }
+    );
   }
 }
