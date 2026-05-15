@@ -488,9 +488,9 @@ function HeroSection({ heroContent }: { heroContent?: LandingContentItem }) {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="mb-4 text-center text-3xl leading-tight font-extrabold sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            <span className="gradient-text">{heroContent?.title || 'تسيير مؤسستك'}</span>
+            <span className="gradient-text">{heroContent?.title || 'إديوتراك'}</span>
             <br />
-            <span className="text-edutrack-dark">{heroContent?.subtitle || 'التعليمية بذكاء'}</span>
+            <span className="text-edutrack-dark">{heroContent?.subtitle || 'منصة إدارة المؤسسات التعليمية'}</span>
           </motion.h1>
 
           {/* Subheading */}
@@ -503,13 +503,11 @@ function HeroSection({ heroContent }: { heroContent?: LandingContentItem }) {
             {(() => {
               try {
                 const parsed = heroContent?.content ? JSON.parse(heroContent.content) : null;
-                return parsed?.description || 'منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير';
+                return parsed?.description || 'الحل الأمثل لإدارة مدارسكم ومراكز الدعم المدرسي بكل سهولة وكفاءة';
               } catch {
-                return heroContent?.content || 'منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير';
+                return heroContent?.content || 'الحل الأمثل لإدارة مدارسكم ومراكز الدعم المدرسي بكل سهولة وكفاءة';
               }
             })()}
-            <br className="hidden sm:block" />
-            صُممت خصيصاً للمؤسسات التعليمية في الجزائر
           </motion.p>
 
           {/* CTA Buttons */}
