@@ -1409,7 +1409,7 @@ async function main() {
         {
           name: 'برومزي',
           plan: 'PREMIUM',
-          price: 5000,
+          price: 7000,
           period: 'شهري',
           features: ['تلاميذ غير محدودين', 'أساتذة غير محدودين', 'جميع المميزات', 'تقارير متقدمة', 'إشعارات SMS وبريد', 'دعم فني أولوي', 'API متقدم'],
           highlighted: true,
