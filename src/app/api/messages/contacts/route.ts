@@ -55,7 +55,7 @@ export async function GET(request: Request) {
     });
 
     let directors: ContactUser[] = [];
-    let teachers: ContactUser[] = [];
+    let teachers: (ContactUser & { childNames?: string[] })[] = [];
     let parents: ContactUser[] = [];
 
     if (role === 'TEACHER') {
@@ -196,10 +196,36 @@ export async function GET(request: Request) {
         },
       });
     } else if (role === 'PARENT') {
-      // Parent can message teachers who teach their children
+      // Parent can message:
+      // 1. DIRECTOR(s) of the institution
+      // 2. Teachers who teach their children
+
+      // 1. Directors of the institution
+      directors = await db.user.findMany({
+        where: {
+          institutionId,
+          role: 'DIRECTOR',
+        },
+        select: {
+          id: true,
+          name: true,
+          role: true,
+        },
+      });
+
+      // 2. Teachers who teach their children
       const parent = await db.parent.findUnique({
         where: { userId },
-        select: { id: true, students: { select: { sectionId: true } } },
+        select: {
+          id: true,
+          students: {
+            select: {
+              id: true,
+              name: true,
+              sectionId: true,
+            },
+          },
+        },
       });
 
       if (parent) {
@@ -208,24 +234,34 @@ export async function GET(request: Request) {
           .filter((id): id is string => id !== null);
 
         if (sectionIds.length > 0) {
-          // Find teachers who have sessions in these sections
+          // Find teachers who have sessions in these sections, along with which sections
           const sessions = await db.session.findMany({
             where: { sectionId: { in: sectionIds } },
-            select: { teacherId: true },
-            distinct: ['teacherId'],
+            select: { teacherId: true, sectionId: true },
           });
 
-          const teacherIds = sessions.map((s) => s.teacherId);
+          // Map: teacherId -> sectionIds
+          const teacherSectionMap = new Map<string, Set<string>>();
+          for (const session of sessions) {
+            if (!teacherSectionMap.has(session.teacherId)) {
+              teacherSectionMap.set(session.teacherId, new Set());
+            }
+            teacherSectionMap.get(session.teacherId)!.add(session.sectionId!);
+          }
+
+          const teacherIds = Array.from(teacherSectionMap.keys());
 
           if (teacherIds.length > 0) {
             const teacherUsers = await db.teacher.findMany({
               where: { id: { in: teacherIds } },
-              select: { userId: true },
+              select: { id: true, userId: true },
             });
 
-            teachers = await db.user.findMany({
+            const teacherUserIds = teacherUsers.map((t) => t.userId);
+
+            const teacherUserRecords = await db.user.findMany({
               where: {
-                id: { in: teacherUsers.map((t) => t.userId) },
+                id: { in: teacherUserIds },
               },
               select: {
                 id: true,
@@ -239,15 +275,43 @@ export async function GET(request: Request) {
                 },
               },
             });
+
+            // Build a map: teacherId -> child names that this teacher teaches
+            const teacherChildMap = new Map<string, string[]>();
+            for (const [teacherId, tSectionIds] of teacherSectionMap) {
+              const childNames = parent.students
+                .filter((s) => s.sectionId && tSectionIds.has(s.sectionId))
+                .map((s) => s.name);
+              teacherChildMap.set(teacherId, childNames);
+            }
+
+            // Build userId -> teacherId map
+            const userIdToTeacherId = new Map<string, string>();
+            for (const tu of teacherUsers) {
+              userIdToTeacherId.set(tu.userId, tu.id);
+            }
+
+            // Enrich teacher contacts with child names
+            teachers = teacherUserRecords.map((user) => {
+              const teacherId = userIdToTeacherId.get(user.id);
+              const childNames = teacherId ? teacherChildMap.get(teacherId) || [] : [];
+              return {
+                ...user,
+                childNames,
+              };
+            });
           }
         }
       }
     }
 
-    // Group by role
+    // Group by role - include childNames for teachers when parent is requesting
     const contacts = {
       directors: directors.map(formatContact),
-      teachers: teachers.map(formatContact),
+      teachers: teachers.map((t) => ({
+        ...formatContact(t),
+        childNames: (t as { childNames?: string[] }).childNames || [],
+      })),
       parents: parents.map(formatContact),
     };
 

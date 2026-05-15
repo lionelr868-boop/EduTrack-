@@ -124,6 +124,15 @@ export async function GET(
   }
 }
 
+function getRoleLabelAr(role: string): string {
+  switch (role) {
+    case 'DIRECTOR': return 'المدير';
+    case 'TEACHER': return 'الأستاذ';
+    case 'PARENT': return 'ولي الأمر';
+    default: return 'مستخدم';
+  }
+}
+
 // POST /api/conversations/[id] - Send a message in a conversation
 export async function POST(
   request: Request,
@@ -148,9 +157,22 @@ export async function POST(
       );
     }
 
-    // Verify conversation exists
+    // Verify conversation exists and get participants info
     const conversation = await db.conversation.findUnique({
       where: { id },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                role: true,
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!conversation) {
@@ -161,21 +183,19 @@ export async function POST(
     }
 
     // Verify sender is a participant
-    const participant = await db.conversationParticipant.findUnique({
-      where: {
-        conversationId_userId: {
-          conversationId: id,
-          userId: senderId,
-        },
-      },
-    });
+    const senderParticipant = conversation.participants.find(
+      (p) => p.userId === senderId
+    );
 
-    if (!participant) {
+    if (!senderParticipant) {
       return NextResponse.json(
         { error: 'Sender is not a participant in this conversation' },
         { status: 403 }
       );
     }
+
+    const senderName = senderParticipant.user.name;
+    const senderRole = senderParticipant.user.role;
 
     // Create the message and update conversation in a transaction
     const message = await db.$transaction(async (tx) => {
@@ -201,6 +221,32 @@ export async function POST(
 
       return msg;
     });
+
+    // Create notifications for all OTHER participants in the conversation
+    const otherParticipants = conversation.participants.filter(
+      (p) => p.userId !== senderId
+    );
+
+    if (otherParticipants.length > 0) {
+      try {
+        const truncatedContent = content.trim().length > 50
+          ? content.trim().slice(0, 50) + '...'
+          : content.trim();
+
+        await db.notification.createMany({
+          data: otherParticipants.map((p) => ({
+            userId: p.userId,
+            title: `رسالة جديدة من ${getRoleLabelAr(senderRole)}`,
+            message: `${senderName}: ${truncatedContent}`,
+            type: 'ACTIVITY',
+            link: 'messages',
+          })),
+        });
+      } catch (notifError) {
+        // Don't fail the message send if notification creation fails
+        console.error('Failed to create message notification:', notifError);
+      }
+    }
 
     return NextResponse.json({
       message: {

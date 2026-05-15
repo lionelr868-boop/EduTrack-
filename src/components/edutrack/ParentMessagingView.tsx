@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store/useAppStore';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -26,11 +26,12 @@ import {
   Plus,
   Loader2,
   MessageSquare,
-  User,
   Users,
   Crown,
   GraduationCap,
   BookOpen,
+  RefreshCw,
+  Building2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -89,13 +90,12 @@ interface TeacherContact {
   userId: string;
   name: string;
   subjectName: string;
-  childName: string;
+  childNames: string[];
 }
 
 interface DirectorContact {
   userId: string;
   name: string;
-  institutionName: string;
 }
 
 // ─── Animation Variants ──────────────────────────────────────
@@ -111,12 +111,6 @@ const containerVariants = {
 const itemVariants = {
   hidden: { opacity: 0, y: 10 },
   visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: 'easeOut' } },
-};
-
-const slideFromRight = {
-  hidden: { x: 30, opacity: 0 },
-  visible: { x: 0, opacity: 1, transition: { duration: 0.3, ease: 'easeOut' } },
-  exit: { x: 30, opacity: 0, transition: { duration: 0.2 } },
 };
 
 const slideFromLeft = {
@@ -211,18 +205,6 @@ function ContactListSkeleton() {
   );
 }
 
-function ChatSkeleton() {
-  return (
-    <div className="flex flex-col items-center justify-center h-full py-20 px-4">
-      <div className="h-20 w-20 rounded-full bg-edutrack-primary/10 flex items-center justify-center mb-4">
-        <MessageSquare className="h-10 w-10 text-edutrack-primary/40" />
-      </div>
-      <Skeleton className="h-5 w-48 mb-2" />
-      <Skeleton className="h-3 w-64" />
-    </div>
-  );
-}
-
 // ─── Main Component ──────────────────────────────────────────
 
 export default function ParentMessagingView() {
@@ -232,7 +214,7 @@ export default function ParentMessagingView() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversation, setActiveConversation] = useState<ConversationDetail | null>(null);
   const [teacherContacts, setTeacherContacts] = useState<TeacherContact[]>([]);
-  const [directorContact, setDirectorContact] = useState<DirectorContact | null>(null);
+  const [directorContacts, setDirectorContacts] = useState<DirectorContact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [showNewConversationDialog, setShowNewConversationDialog] = useState(false);
@@ -243,9 +225,12 @@ export default function ParentMessagingView() {
   const [sendingMessage, setSendingMessage] = useState(false);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [creatingConversation, setCreatingConversation] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const conversationsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check mobile
   useEffect(() => {
@@ -255,74 +240,44 @@ export default function ParentMessagingView() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // ─── Fetch Parent Contacts (teachers + director) ───────────
+  // ─── Fetch Parent Contacts (teachers + directors) ──────────
   const fetchParentContacts = useCallback(async () => {
     if (!user?.id || !user?.institutionId) return;
     setLoadingContacts(true);
     try {
-      // Fetch parent dashboard to get children and their teachers
-      const dashboardRes = await fetch(`/api/parent/dashboard?userId=${user.id}`);
-      if (!dashboardRes.ok) {
-        setLoadingContacts(false);
-        return;
-      }
-      const dashboardData = await dashboardRes.json();
-
-      // Build a map of teacherName -> child names and subjects from timetable
-      const teacherChildMap = new Map<string, { childNames: Set<string>; subjectName: string }>();
-      if (dashboardData.weeklyTimetable) {
-        for (const day of dashboardData.weeklyTimetable) {
-          for (const session of day.sessions) {
-            const teacherName = session.teacherName as string;
-            if (!teacherChildMap.has(teacherName)) {
-              teacherChildMap.set(teacherName, {
-                childNames: new Set<string>(),
-                subjectName: session.subject,
-              });
-            }
-            const entry = teacherChildMap.get(teacherName)!;
-            entry.childNames.add(session.studentName);
-          }
-        }
-      }
-
-      // Fetch contacts API to get userIds
       const contactsRes = await fetch(`/api/messages/contacts?userId=${user.id}&institutionId=${user.institutionId}`);
       if (!contactsRes.ok) {
         setLoadingContacts(false);
         return;
       }
       const contactsData = await contactsRes.json();
-      const apiTeachers: { userId: string; name: string; subjectName: string | null }[] = contactsData.contacts?.teachers || [];
+
+      // API now returns teachers with childNames and directors
+      const apiTeachers: { userId: string; name: string; subjectName: string | null; childNames?: string[] }[] = contactsData.contacts?.teachers || [];
       const apiDirectors: { userId: string; name: string }[] = contactsData.contacts?.directors || [];
 
-      // Build teacher contacts list from API, enriched with child info
+      // Build teacher contacts list from API
       const mergedTeachers: TeacherContact[] = [];
       const seenUserIds = new Set<string>();
 
       for (const apiT of apiTeachers) {
         if (seenUserIds.has(apiT.userId)) continue;
         seenUserIds.add(apiT.userId);
-
-        const childInfo = teacherChildMap.get(apiT.name);
         mergedTeachers.push({
           userId: apiT.userId,
           name: apiT.name,
-          subjectName: apiT.subjectName || childInfo?.subjectName || '',
-          childName: childInfo ? Array.from(childInfo.childNames).join('، ') : '',
+          subjectName: apiT.subjectName || '',
+          childNames: apiT.childNames || [],
         });
       }
 
       setTeacherContacts(mergedTeachers);
 
-      // Set director contact
-      if (apiDirectors.length > 0) {
-        setDirectorContact({
-          userId: apiDirectors[0].userId,
-          name: apiDirectors[0].name,
-          institutionName: dashboardData.parent?.name || '',
-        });
-      }
+      // Set director contacts
+      setDirectorContacts(apiDirectors.map(d => ({
+        userId: d.userId,
+        name: d.name,
+      })));
     } catch {
       toast.error('حدث خطأ أثناء تحميل جهات الاتصال');
     } finally {
@@ -335,9 +290,10 @@ export default function ParentMessagingView() {
   }, [fetchParentContacts]);
 
   // ─── Fetch Conversations ───────────────────────────────────
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (showLoading = true) => {
     if (!user?.id) return;
-    setLoadingConversations(true);
+    if (showLoading) setLoadingConversations(true);
+    else setIsRefreshing(true);
     try {
       const res = await fetch(`/api/conversations?userId=${user.id}`);
       if (res.ok) {
@@ -345,15 +301,49 @@ export default function ParentMessagingView() {
         setConversations(data.conversations || []);
       }
     } catch {
-      toast.error('حدث خطأ أثناء تحميل المحادثات');
+      // Silent fail on auto-refresh
+      if (showLoading) toast.error('حدث خطأ أثناء تحميل المحادثات');
     } finally {
       setLoadingConversations(false);
+      setIsRefreshing(false);
     }
   }, [user?.id]);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
+
+  // Auto-refresh conversations every 10 seconds
+  useEffect(() => {
+    conversationsIntervalRef.current = setInterval(() => {
+      fetchConversations(false);
+    }, 10000);
+    return () => {
+      if (conversationsIntervalRef.current) clearInterval(conversationsIntervalRef.current);
+    };
+  }, [fetchConversations]);
+
+  // Auto-refresh active chat every 5 seconds
+  useEffect(() => {
+    if (!activeConversation?.id || !user?.id) return;
+
+    const refreshChat = async () => {
+      try {
+        const res = await fetch(`/api/conversations/${activeConversation.id}?userId=${user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setActiveConversation(data.conversation);
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+
+    chatIntervalRef.current = setInterval(refreshChat, 5000);
+    return () => {
+      if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
+    };
+  }, [activeConversation?.id, user?.id]);
 
   // ─── Open Conversation ─────────────────────────────────────
   const openConversation = useCallback(async (conversationId: string) => {
@@ -491,6 +481,12 @@ export default function ParentMessagingView() {
     return teacherContacts.find(t => t.userId === participant.userId) || null;
   };
 
+  // ─── Get child display for a teacher contact ───────────────
+  const getChildDisplay = (teacherInfo: TeacherContact | null): string => {
+    if (!teacherInfo || teacherInfo.childNames.length === 0) return '';
+    return teacherInfo.childNames.join('، ');
+  };
+
   // ─── Handle key press in message input ─────────────────────
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -504,14 +500,17 @@ export default function ParentMessagingView() {
     setMobileShowChat(false);
   };
 
+  // ─── Total unread count ────────────────────────────────────
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unreadCount, 0);
+
   // ─── Render: Conversation List Item ────────────────────────
   const renderConversationItem = (conv: ConversationSummary) => {
     const other = getOtherParticipant(conv, user?.id || '');
     if (!other) return null;
 
     const isActive = activeConversation?.id === conv.id;
-    const roleInfo = getParticipantRoleInfo(other);
     const teacherInfo = other.role === 'TEACHER' ? getTeacherInfoForConversation(other) : null;
+    const childDisplay = getChildDisplay(teacherInfo);
 
     return (
       <motion.button
@@ -557,7 +556,7 @@ export default function ParentMessagingView() {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 border ${getRoleBadgeColor(other.role)}`}>
                 {other.role === 'DIRECTOR' ? (
                   <span className="flex items-center gap-0.5">
@@ -574,16 +573,19 @@ export default function ParentMessagingView() {
                   {teacherInfo.subjectName}
                 </span>
               )}
-              {other.role === 'DIRECTOR' && roleInfo && (
-                <span className="text-[10px] text-amber-600/70 truncate">{roleInfo}</span>
+              {other.role === 'DIRECTOR' && (
+                <span className="text-[10px] text-amber-600/70 truncate flex items-center gap-0.5">
+                  <Building2 className="h-2.5 w-2.5" />
+                  مدير المؤسسة
+                </span>
               )}
             </div>
 
-            {teacherInfo && teacherInfo.childName && (
+            {childDisplay && (
               <div className="flex items-center gap-1 mt-0.5">
                 <GraduationCap className="h-2.5 w-2.5 text-edutrack-primary/50" />
                 <span className="text-[10px] text-edutrack-primary/60 truncate">
-                  ولي: {teacherInfo.childName}
+                  أستاذ: {childDisplay}
                 </span>
               </div>
             )}
@@ -624,10 +626,15 @@ export default function ParentMessagingView() {
         key={msg.id}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, delay: index * 0.02 }}
+        transition={{ duration: 0.2, delay: Math.min(index * 0.02, 0.5) }}
         className={`flex ${isOwnMessage ? 'justify-start' : 'justify-end'} ${isSameSenderAsPrev ? 'mt-1' : 'mt-3'}`}
       >
-        <div className={`max-w-[75%] ${isOwnMessage ? 'order-1' : 'order-1'}`}>
+        <div className="max-w-[75%]">
+          {!isSameSenderAsPrev && !isOwnMessage && (
+            <p className="text-[10px] text-muted-foreground mb-1 text-right px-2">
+              {msg.sender?.name}
+            </p>
+          )}
           <div
             className={`px-4 py-2.5 rounded-2xl shadow-sm ${
               isOwnMessage
@@ -648,17 +655,17 @@ export default function ParentMessagingView() {
   };
 
   // ─── Render: Contact Item (in New Conversation Dialog) ─────
-  const renderContactItem = (contact: TeacherContact | DirectorContact, type: 'teacher' | 'director') => (
+  const renderTeacherContactItem = (contact: TeacherContact) => (
     <motion.button
       key={contact.userId}
       whileHover={{ x: -3 }}
       whileTap={{ scale: 0.98 }}
       onClick={() => startConversation(contact.userId)}
       disabled={creatingConversation}
-      className="w-full text-right flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 transition-all duration-200 border border-transparent hover:border-gray-100"
+      className="w-full text-right flex items-center gap-3 p-3 rounded-xl hover:bg-teal-50/50 transition-all duration-200 border border-transparent hover:border-teal-100"
     >
       <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-        <AvatarFallback className={`${type === 'director' ? 'bg-amber-500' : 'bg-teal-500'} text-white text-sm font-bold`}>
+        <AvatarFallback className="bg-teal-500 text-white text-sm font-bold">
           {contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
         </AvatarFallback>
       </Avatar>
@@ -666,37 +673,59 @@ export default function ParentMessagingView() {
       <div className="flex-1 min-w-0">
         <h4 className="text-sm font-semibold text-edutrack-dark truncate">{contact.name}</h4>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 border ${type === 'director' ? getRoleBadgeColor('DIRECTOR') : getRoleBadgeColor('TEACHER')}`}>
-            {type === 'director' ? (
-              <span className="flex items-center gap-0.5">
-                <Crown className="h-2.5 w-2.5" />
-                مدير
-              </span>
-            ) : (
-              'أستاذ'
-            )}
+          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 border ${getRoleBadgeColor('TEACHER')}`}>
+            أستاذ
           </Badge>
-          {type === 'teacher' && 'subjectName' in contact && contact.subjectName && (
+          {contact.subjectName && (
             <span className="text-[10px] text-teal-600/70 truncate flex items-center gap-0.5">
               <BookOpen className="h-2.5 w-2.5" />
               {contact.subjectName}
             </span>
           )}
         </div>
-        {type === 'teacher' && 'childName' in contact && contact.childName && (
+        {contact.childNames.length > 0 && (
           <div className="flex items-center gap-1 mt-0.5">
             <GraduationCap className="h-2.5 w-2.5 text-edutrack-primary/50" />
             <span className="text-[10px] text-edutrack-primary/60 truncate">
-              ولي: {contact.childName}
+              أستاذ: {contact.childNames.join('، ')}
             </span>
           </div>
         )}
-        {type === 'director' && (
-          <span className="text-[10px] text-amber-600/70">مدير المؤسسة</span>
-        )}
       </div>
 
-      <MessageCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <MessageCircle className="h-4 w-4 text-teal-400 flex-shrink-0" />
+    </motion.button>
+  );
+
+  const renderDirectorContactItem = (contact: DirectorContact) => (
+    <motion.button
+      key={contact.userId}
+      whileHover={{ x: -3 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={() => startConversation(contact.userId)}
+      disabled={creatingConversation}
+      className="w-full text-right flex items-center gap-3 p-3 rounded-xl hover:bg-amber-50/50 transition-all duration-200 border border-transparent hover:border-amber-100"
+    >
+      <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+        <AvatarFallback className="bg-amber-500 text-white text-sm font-bold">
+          {contact.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="flex-1 min-w-0">
+        <h4 className="text-sm font-semibold text-edutrack-dark truncate">{contact.name}</h4>
+        <div className="flex items-center gap-1.5 mt-0.5">
+          <Badge variant="outline" className={`text-[9px] px-1.5 py-0 h-4 border ${getRoleBadgeColor('DIRECTOR')}`}>
+            <span className="flex items-center gap-0.5">
+              <Crown className="h-2.5 w-2.5" />
+              مدير
+            </span>
+          </Badge>
+          <span className="text-[10px] text-amber-600/70">مدير المؤسسة</span>
+        </div>
+      </div>
+
+      <MessageCircle className="h-4 w-4 text-amber-400 flex-shrink-0" />
     </motion.button>
   );
 
@@ -736,7 +765,7 @@ export default function ParentMessagingView() {
       <p className="text-sm text-muted-foreground text-center max-w-xs">
         تواصل مع أساتذة أبنائك أو مدير المؤسسة بسهولة
       </p>
-      {(teacherContacts.length > 0 || directorContact) && (
+      {(teacherContacts.length > 0 || directorContacts.length > 0) && (
         <Button
           onClick={() => setShowNewConversationDialog(true)}
           className="mt-4 bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2 h-9 text-sm"
@@ -803,6 +832,7 @@ export default function ParentMessagingView() {
 
     const other = getOtherParticipant(activeConversation, user?.id || '');
     const teacherInfo = other?.role === 'TEACHER' ? getTeacherInfoForConversation(other) : null;
+    const childDisplay = getChildDisplay(teacherInfo);
 
     return (
       <motion.div
@@ -855,15 +885,16 @@ export default function ParentMessagingView() {
                   {teacherInfo.subjectName}
                 </span>
               )}
-              {other?.role === 'DIRECTOR' && getParticipantRoleInfo(other) && (
-                <span className="text-[10px] text-amber-600/70 truncate">
-                  {getParticipantRoleInfo(other)}
+              {other?.role === 'DIRECTOR' && (
+                <span className="text-[10px] text-amber-600/70 truncate flex items-center gap-0.5">
+                  <Building2 className="h-2.5 w-2.5" />
+                  مدير المؤسسة
                 </span>
               )}
-              {teacherInfo && teacherInfo.childName && (
+              {childDisplay && (
                 <span className="text-[10px] text-edutrack-primary/60 truncate flex items-center gap-0.5">
                   <GraduationCap className="h-2.5 w-2.5" />
-                  ولي: {teacherInfo.childName}
+                  أستاذ: {childDisplay}
                 </span>
               )}
             </div>
@@ -924,9 +955,9 @@ export default function ParentMessagingView() {
 
   // ─── Render: New Conversation Dialog ───────────────────────
   const renderNewConversationDialog = () => {
-    const hasDirector = !!directorContact;
+    const hasDirectors = directorContacts.length > 0;
     const hasTeachers = teacherContacts.length > 0;
-    const totalContacts = (hasDirector ? 1 : 0) + teacherContacts.length;
+    const totalContacts = directorContacts.length + teacherContacts.length;
 
     return (
       <Dialog open={showNewConversationDialog} onOpenChange={setShowNewConversationDialog}>
@@ -957,15 +988,17 @@ export default function ParentMessagingView() {
             <ScrollArea className="max-h-96 flex-1">
               <div className="space-y-4 p-1">
                 {/* Director Section */}
-                {hasDirector && (
+                {hasDirectors && (
                   <div>
                     <div className="flex items-center gap-2 mb-2 px-1">
                       <Crown className="h-4 w-4 text-amber-500" />
                       <h4 className="text-xs font-bold text-amber-700">المدير</h4>
-                      <Badge variant="secondary" className="h-4 min-w-[18px] px-1 text-[9px]">1</Badge>
+                      <Badge variant="secondary" className="h-4 min-w-[18px] px-1 text-[9px]">
+                        {directorContacts.length}
+                      </Badge>
                     </div>
                     <div className="space-y-1 bg-amber-50/50 rounded-lg p-1">
-                      {renderContactItem(directorContact, 'director')}
+                      {directorContacts.map(d => renderDirectorContactItem(d))}
                     </div>
                   </div>
                 )}
@@ -981,7 +1014,7 @@ export default function ParentMessagingView() {
                       </Badge>
                     </div>
                     <div className="space-y-1 bg-teal-50/50 rounded-lg p-1">
-                      {teacherContacts.map(t => renderContactItem(t, 'teacher'))}
+                      {teacherContacts.map(t => renderTeacherContactItem(t))}
                     </div>
                   </div>
                 )}
@@ -1017,91 +1050,73 @@ export default function ParentMessagingView() {
               <MessageCircle className="h-5 w-5 text-edutrack-primary" />
             </div>
             المراسلات
+            {totalUnread > 0 && (
+              <Badge className="bg-edutrack-primary text-white text-[10px] h-5 min-w-[20px] flex items-center justify-center px-1.5 rounded-full">
+                {totalUnread}
+              </Badge>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {conversations.length > 0
-              ? `${conversations.length} محادثة`
+              ? `${conversations.length} محادثة • ${teacherContacts.length} أستاذ • ${directorContacts.length} مدير`
               : 'تواصل مع أساتذة أبنائك والمدير'}
           </p>
         </div>
-        <Button
-          onClick={() => setShowNewConversationDialog(true)}
-          className="bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2 h-9 text-sm shadow-sm"
-          disabled={loadingContacts}
-        >
-          <Plus className="h-4 w-4" />
-          محادثة جديدة
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fetchConversations(false)}
+            disabled={isRefreshing}
+            className={`h-9 w-9 ${isRefreshing ? 'animate-spin' : ''}`}
+          >
+            <RefreshCw className="h-4 w-4 text-edutrack-primary" />
+          </Button>
+          <Button
+            onClick={() => setShowNewConversationDialog(true)}
+            className="bg-edutrack-primary hover:bg-edutrack-primary/90 text-white gap-2 h-9 text-sm shadow-sm"
+            disabled={loadingContacts}
+          >
+            <Plus className="h-4 w-4" />
+            محادثة جديدة
+          </Button>
+        </div>
       </motion.div>
 
       {/* Stats Bar */}
-      <motion.div variants={itemVariants} className="flex items-center gap-3 mb-4">
+      <motion.div variants={itemVariants} className="flex items-center gap-3 mb-4 flex-wrap">
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-teal-50">
           <BookOpen className="h-3.5 w-3.5 text-teal-600" />
           <span className="text-xs font-medium text-teal-700">{teacherContacts.length} أستاذ</span>
         </div>
-        {directorContact && (
+        {directorContacts.length > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50">
             <Crown className="h-3.5 w-3.5 text-amber-600" />
-            <span className="text-xs font-medium text-amber-700">المدير</span>
+            <span className="text-xs font-medium text-amber-700">{directorContacts.length} مدير</span>
           </div>
         )}
-        {conversations.length > 0 && (
+        {totalUnread > 0 && (
           <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-edutrack-primary/5">
-            <MessageSquare className="h-3.5 w-3.5 text-edutrack-primary" />
-            <span className="text-xs font-medium text-edutrack-primary">{conversations.length} محادثة</span>
+            <MessageCircle className="h-3.5 w-3.5 text-edutrack-primary" />
+            <span className="text-xs font-medium text-edutrack-primary">{totalUnread} رسالة غير مقروءة</span>
           </div>
         )}
       </motion.div>
 
-      {/* Main Content: Two-Panel Layout */}
-      <motion.div variants={itemVariants} className="flex-1 min-h-0 flex gap-4">
-        <Card className="flex-1 shadow-sm border-gray-200 overflow-hidden">
-          {/* Mobile: Show either conversations list or chat */}
-          {isMobile ? (
-            <div className="h-full">
-              <AnimatePresence mode="wait">
-                {mobileShowChat ? (
-                  <motion.div
-                    key="chat"
-                    variants={slideFromLeft}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    className="h-full"
-                  >
-                    {renderChatPanel()}
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="list"
-                    variants={slideFromRight}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    className="h-full"
-                  >
-                    {renderConversationsPanel()}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+      {/* Chat Area */}
+      <motion.div variants={itemVariants} className="flex-1 min-h-0">
+        <Card className="h-full border-0 shadow-sm overflow-hidden">
+          <div className={`flex h-full ${isMobile ? (mobileShowChat ? '[&>*:first-child]:hidden' : '[&>*:last-child]:hidden') : ''}`}>
+            {/* Conversations List */}
+            <div className={`${isMobile ? 'w-full' : 'w-80'} border-l border-gray-100 flex-shrink-0`}>
+              {renderConversationsPanel()}
             </div>
-          ) : (
-            /* Desktop: Two-panel side by side */
-            <div className="h-full flex">
-              {/* Right Panel: Conversations List */}
-              <div className="w-80 border-l border-gray-100 flex flex-col h-full">
-                {renderConversationsPanel()}
-              </div>
 
-              {/* Left Panel: Chat */}
-              <div className="flex-1 min-w-0 h-full">
-                <AnimatePresence mode="wait">
-                  {renderChatPanel()}
-                </AnimatePresence>
-              </div>
+            {/* Chat Panel */}
+            <div className="flex-1 min-w-0">
+              {renderChatPanel()}
             </div>
-          )}
+          </div>
         </Card>
       </motion.div>
 

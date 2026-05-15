@@ -218,6 +218,8 @@ export default function MessagingView() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messageInputRef = useRef<HTMLInputElement>(null);
+  const conversationsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Check mobile
   useEffect(() => {
@@ -228,9 +230,9 @@ export default function MessagingView() {
   }, []);
 
   // ─── Fetch Conversations ───────────────────────────────────
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (showLoading = true) => {
     if (!user?.id) return;
-    setLoadingConversations(true);
+    if (showLoading) setLoadingConversations(true);
     try {
       const res = await fetch(`/api/conversations?userId=${user.id}`);
       if (res.ok) {
@@ -238,7 +240,7 @@ export default function MessagingView() {
         setConversations(data.conversations || []);
       }
     } catch {
-      toast.error('حدث خطأ أثناء تحميل المحادثات');
+      if (showLoading) toast.error('حدث خطأ أثناء تحميل المحادثات');
     } finally {
       setLoadingConversations(false);
     }
@@ -246,6 +248,16 @@ export default function MessagingView() {
 
   useEffect(() => {
     fetchConversations();
+  }, [fetchConversations]);
+
+  // Auto-refresh conversations every 10 seconds
+  useEffect(() => {
+    conversationsIntervalRef.current = setInterval(() => {
+      fetchConversations(false);
+    }, 10000);
+    return () => {
+      if (conversationsIntervalRef.current) clearInterval(conversationsIntervalRef.current);
+    };
   }, [fetchConversations]);
 
   // ─── Fetch Contacts ────────────────────────────────────────
@@ -383,6 +395,28 @@ export default function MessagingView() {
       setCreatingConversation(false);
     }
   }, [user?.id, user?.institutionId, fetchConversations, openConversation]);
+
+  // Auto-refresh active chat every 5 seconds
+  useEffect(() => {
+    if (!activeConversation?.id || !user?.id) return;
+
+    const refreshChat = async () => {
+      try {
+        const res = await fetch(`/api/conversations/${activeConversation.id}?userId=${user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setActiveConversation(data.conversation);
+        }
+      } catch {
+        // Silent fail
+      }
+    };
+
+    chatIntervalRef.current = setInterval(refreshChat, 5000);
+    return () => {
+      if (chatIntervalRef.current) clearInterval(chatIntervalRef.current);
+    };
+  }, [activeConversation?.id, user?.id]);
 
   // ─── Auto-scroll to bottom ─────────────────────────────────
   useEffect(() => {
