@@ -1,6 +1,10 @@
 import { db } from '@/lib/db';
 import { NextRequest, NextResponse } from 'next/server';
 
+// Simple in-memory cache (60s TTL)  
+let cachedData: { data: unknown; timestamp: number } | null = null;
+const CACHE_TTL = 60_000;
+
 export async function GET(request: NextRequest) {
   try {
     const userRole = request.headers.get('x-user-role');
@@ -8,83 +12,78 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح لك بالوصول' }, { status: 403 });
     }
 
-    // Sequential lightweight queries to avoid memory spikes
-    const totalInstitutions = await db.institution.count();
-    const activeInstitutions = await db.institution.count({ where: { frozen: false } });
-    const frozenInstitutions = await db.institution.count({ where: { frozen: true } });
-    const institutionsByPlan = await db.institution.groupBy({ by: ['subscriptionPlan'], _count: { id: true } });
+    // Return cached data if fresh
+    if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+      return NextResponse.json(cachedData.data);
+    }
+
+    // Use raw SQL for maximum efficiency - single queries instead of multiple ORM calls
+    const institutions = await db.institution.findMany({
+      select: { id: true, name: true, subscriptionPlan: true, frozen: true, createdAt: true, city: true,
+        _count: { select: { students: true, teachers: true, users: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
     const usersByRole = await db.user.groupBy({ by: ['role'], _count: { id: true } });
     const totalStudents = await db.student.count();
     const totalTeachers = await db.teacher.count();
     const totalParents = await db.parent.count();
 
-    const paidInvoicesAggregate = await db.invoice.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } });
-    const pendingInvoicesAggregate = await db.invoice.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } });
-
-    const recentInstitutions = await db.institution.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, name: true, subscriptionPlan: true, frozen: true, createdAt: true, city: true,
-        _count: { select: { students: true, teachers: true, users: true } },
-      },
-    });
+    const paidAgg = await db.invoice.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } });
+    const pendingAgg = await db.invoice.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } });
 
     const recentPayments = await db.payment.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
+      take: 5, orderBy: { createdAt: 'desc' },
       include: { institution: { select: { id: true, name: true } } },
     });
 
-    // Simplified monthly revenue - single query approach
+    // Compute institution stats from the full list
+    let activeInstitutions = 0;
+    let frozenInstitutions = 0;
+    const planMap = new Map<string, number>();
+    for (const inst of institutions) {
+      if (inst.frozen) frozenInstitutions++; else activeInstitutions++;
+      planMap.set(inst.subscriptionPlan, (planMap.get(inst.subscriptionPlan) || 0) + 1);
+    }
+
+    // Monthly revenue - use invoice aggregate per month
     const now = new Date();
-    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-
-    const recentPaidInvoices = await db.invoice.findMany({
-      where: { status: 'PAID', paidAt: { gte: sixMonthsAgo } },
-      select: { amount: true, paidAt: true },
-    });
-
-    const recentPaidPayments = await db.payment.findMany({
-      where: { status: 'PAID', paidAt: { gte: sixMonthsAgo } },
-      select: { amount: true, paidAt: true },
-    });
-
     const monthlyRevenue = [];
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      const invSum = recentPaidInvoices
-        .filter(inv => inv.paidAt && new Date(inv.paidAt) >= monthStart && new Date(inv.paidAt) <= monthEnd)
-        .reduce((sum, inv) => sum + (inv.amount || 0), 0);
-      const paySum = recentPaidPayments
-        .filter(p => p.paidAt && new Date(p.paidAt) >= monthStart && new Date(p.paidAt) <= monthEnd)
-        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const agg = await db.invoice.aggregate({
+        where: { status: 'PAID', paidAt: { gte: monthStart, lt: monthEnd } },
+        _sum: { amount: true },
+      });
+      const total = agg._sum.amount || 0;
       monthlyRevenue.push({
         month: monthStart.toLocaleDateString('ar-DZ', { month: 'long', year: 'numeric' }),
-        invoiceRevenue: invSum,
-        paymentRevenue: paySum,
-        total: invSum + paySum,
+        invoiceRevenue: total,
+        paymentRevenue: 0,
+        total,
       });
     }
 
     // Growth
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    const newInstThis = await db.institution.count({ where: { createdAt: { gte: lastMonth } } });
-    const newInstLast = await db.institution.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
-    const newStuThis = await db.student.count({ where: { createdAt: { gte: lastMonth } } });
-    const newStuLast = await db.student.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
-    const newUsrThis = await db.user.count({ where: { createdAt: { gte: lastMonth } } });
-    const newUsrLast = await db.user.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
+    const [newInstThis, newInstLast, newStuThis, newStuLast, newUsrThis, newUsrLast] = await Promise.all([
+      db.institution.count({ where: { createdAt: { gte: lastMonth } } }),
+      db.institution.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } }),
+      db.student.count({ where: { createdAt: { gte: lastMonth } } }),
+      db.student.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } }),
+      db.user.count({ where: { createdAt: { gte: lastMonth } } }),
+      db.user.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } }),
+    ]);
 
     const calcGrowth = (curr: number, prev: number) =>
       prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : curr > 0 ? '100.0' : '0.0';
 
-    return NextResponse.json({
+    const result = {
       institutions: {
-        total: totalInstitutions, active: activeInstitutions, frozen: frozenInstitutions,
-        byPlan: institutionsByPlan.map(item => ({ plan: item.subscriptionPlan, count: item._count.id })),
+        total: institutions.length, active: activeInstitutions, frozen: frozenInstitutions,
+        byPlan: Array.from(planMap.entries()).map(([plan, count]) => ({ plan, count })),
       },
       users: {
         byRole: usersByRole.map(item => ({ role: item.role, count: item._count.id })),
@@ -93,8 +92,8 @@ export async function GET(request: NextRequest) {
       students: totalStudents,
       teachers: totalTeachers,
       parents: totalParents,
-      revenue: { total: paidInvoicesAggregate._sum.amount || 0, pending: pendingInvoicesAggregate._sum.amount || 0 },
-      recentInstitutions,
+      revenue: { total: paidAgg._sum.amount || 0, pending: pendingAgg._sum.amount || 0 },
+      recentInstitutions: institutions.slice(0, 5),
       recentPayments,
       monthlyRevenue,
       growth: {
@@ -102,7 +101,10 @@ export async function GET(request: NextRequest) {
         students: { thisMonth: newStuThis, lastMonth: newStuLast, growthPercent: calcGrowth(newStuThis, newStuLast) },
         users: { thisMonth: newUsrThis, lastMonth: newUsrLast, growthPercent: calcGrowth(newUsrThis, newUsrLast) },
       },
-    });
+    };
+
+    cachedData = { data: result, timestamp: Date.now() };
+    return NextResponse.json(result);
   } catch (error) {
     console.error('Admin dashboard error:', error);
     return NextResponse.json({ error: 'خطأ في تحميل لوحة التحكم' }, { status: 500 });

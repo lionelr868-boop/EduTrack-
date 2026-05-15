@@ -1,5 +1,5 @@
 #!/bin/bash
-# EduTrack dev script with auto-restart watchdog
+# EduTrack production server with auto-restart watchdog
 cd /home/z/my-project
 
 # Install deps if needed
@@ -17,21 +17,27 @@ fi
 # Generate Prisma client
 bun run db:generate 2>/dev/null || true
 
-echo "[DEV] Starting EduTrack with auto-restart..."
+# Build if needed
+if [ ! -d ".next" ] || [ ! -f ".next/BUILD_ID" ]; then
+  echo "[DEV] Building application..."
+  NODE_OPTIONS='--max-old-space-size=2048' node node_modules/.bin/next build
+fi
+
+echo "[DEV] Starting EduTrack production server with auto-restart..."
 
 # Watchdog loop - restart server if it dies
 RESTART_COUNT=0
 while true; do
   RESTART_COUNT=$((RESTART_COUNT + 1))
-  echo "[DEV] Starting Next.js dev server (attempt #$RESTART_COUNT)..."
+  echo "[DEV] Starting Next.js server (attempt #$RESTART_COUNT)..."
 
-  NODE_OPTIONS='--max-old-space-size=1536' node node_modules/.bin/next dev -p 3000 --webpack 2>&1 &
+  NODE_OPTIONS='--max-old-space-size=2048' node node_modules/.bin/next start -p 3000 &
   SERVER_PID=$!
 
-  # Wait for server to be ready (up to 60 seconds)
+  # Wait for server to be ready (up to 30 seconds)
   echo "[DEV] Waiting for server to be ready..."
   READY=0
-  for i in $(seq 1 60); do
+  for i in $(seq 1 30); do
     if curl -s -o /dev/null http://localhost:3000/ --max-time 3 2>/dev/null; then
       echo "[DEV] Server is ready! (PID: $SERVER_PID)"
       READY=1
@@ -59,6 +65,6 @@ while true; do
   # Clean up any zombie processes on port 3000
   fuser -k 3000/tcp 2>/dev/null || true
   pkill -9 -f "next-server" 2>/dev/null || true
-  pkill -9 -f "next dev" 2>/dev/null || true
+  pkill -9 -f "next start" 2>/dev/null || true
   sleep 2
 done

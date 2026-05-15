@@ -1419,21 +1419,28 @@ function Footer() {
             </div>
           </div>
 
-          {/* Contact Info */}
+          {/* About the Founder */}
           <div>
-            <h4 className="mb-4 font-bold text-white sm:mb-6">تواصل معنا</h4>
+            <h4 className="mb-4 font-bold text-white sm:mb-6">عن المؤسسة</h4>
             <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-white/40">
-                <Mail className="h-4 w-4" />
-                <span>contact@edutrack.dz</span>
+              <div className="flex items-center gap-2 text-sm text-white/60">
+                <GraduationCap className="h-4 w-4 shrink-0 text-edutrack-secondary" />
+                <span>المؤسس: <span className="text-white/80 font-semibold">عيساوي نسيمة</span></span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-white/40">
-                <Phone className="h-4 w-4" />
-                <span dir="ltr">+213 555 000 000</span>
+              <div className="flex items-center gap-2 text-sm text-white/60">
+                <Sparkles className="h-4 w-4 shrink-0 text-edutrack-secondary" />
+                <span>التخصص: <span className="text-white/80">تسويق خدمات</span></span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-white/40">
-                <MapPin className="h-4 w-4" />
-                <span>الجزائر العاصمة، الجزائر</span>
+              <div className="flex items-center gap-2 text-sm text-white/60">
+                <BarChart3 className="h-4 w-4 shrink-0 text-edutrack-secondary" />
+                <span>الكلية: <span className="text-white/80">علوم تجارية</span></span>
+              </div>
+              <div className="mt-3 rounded-lg border border-white/10 bg-white/5 p-3">
+                <p className="text-xs leading-relaxed text-white/50">
+                  مشروع مقدم ضمن متطلبات نيل شهادة الماستر
+                  <br />
+                  <span className="text-edutrack-secondary font-semibold">مؤسسة ناشئة</span>
+                </p>
               </div>
             </div>
           </div>
