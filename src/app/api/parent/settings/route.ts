@@ -235,6 +235,98 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// PATCH /api/parent/settings - Update children assignments
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { userId, addStudentIds, removeStudentIds } = body as {
+      userId: string;
+      addStudentIds?: string[];
+      removeStudentIds?: string[];
+    };
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'معرف المستخدم مطلوب' },
+        { status: 400 }
+      );
+    }
+
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 });
+    }
+
+    const parent = await db.parent.findFirst({ where: { userId } });
+    if (!parent) {
+      return NextResponse.json({ error: 'حساب ولي الأمر غير موجود' }, { status: 404 });
+    }
+
+    // Remove students from this parent
+    if (removeStudentIds && removeStudentIds.length > 0) {
+      await db.student.updateMany({
+        where: { id: { in: removeStudentIds }, parentId: parent.id },
+        data: { parentId: null },
+      });
+    }
+
+    // Add students to this parent
+    if (addStudentIds && addStudentIds.length > 0) {
+      // Verify students belong to the same institution and don't have a parent
+      const students = await db.student.findMany({
+        where: { id: { in: addStudentIds }, institutionId: user.institutionId },
+      });
+
+      const studentsWithParent = students.filter((s) => s.parentId !== null && s.parentId !== parent.id);
+      if (studentsWithParent.length > 0) {
+        const names = studentsWithParent.map((s) => s.name).join('، ');
+        return NextResponse.json(
+          { error: `التلميذ(ذة) "${names}" لديه(ا) ولي أمر آخر` },
+          { status: 400 }
+        );
+      }
+
+      const validIds = students.map((s) => s.id);
+      await db.student.updateMany({
+        where: { id: { in: validIds } },
+        data: { parentId: parent.id },
+      });
+    }
+
+    // Return updated children list
+    const children = await db.student.findMany({
+      where: { parentId: parent.id },
+      include: {
+        section: { include: { year: true } },
+      },
+    });
+
+    return NextResponse.json({
+      message: 'تم تحديث الأبناء بنجاح',
+      children: children.map((child) => ({
+        id: child.id,
+        name: child.name,
+        level: child.level,
+        section: child.section
+          ? {
+              id: child.section.id,
+              name: child.section.name,
+              year: child.section.year
+                ? { id: child.section.year.id, name: child.section.year.name }
+                : null,
+            }
+          : null,
+      })),
+    });
+  } catch (error) {
+    console.error('Error updating children:', error);
+    return NextResponse.json(
+      { error: 'فشل في تحديث الأبناء' },
+      { status: 500 }
+    );
+  }
+}
+
 // POST /api/parent/settings - Change password
 export async function POST(request: NextRequest) {
   try {

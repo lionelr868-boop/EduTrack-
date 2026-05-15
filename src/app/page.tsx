@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 const LandingPage = dynamic(() => import('@/components/edutrack/LandingPage'), { ssr: false });
 const LoginPage = dynamic(() => import('@/components/edutrack/LoginPage'), { ssr: false });
 const RegisterPage = dynamic(() => import('@/components/edutrack/RegisterPage'), { ssr: false });
+const ParentRegisterPage = dynamic(() => import('@/components/edutrack/ParentRegisterPage'), { ssr: false });
 const DashboardLayout = dynamic(() => import('@/components/edutrack/DashboardLayout'), { ssr: false });
 const DirectorDashboard = dynamic(() => import('@/components/edutrack/DirectorDashboard'), { ssr: false });
 const ScheduleView = dynamic(() => import('@/components/edutrack/ScheduleView'), { ssr: false });
@@ -57,6 +58,8 @@ export default function Home() {
         return <LoginPage />;
       case 'register':
         return <RegisterPage />;
+      case 'register-parent':
+        return <ParentRegisterPage />;
 
       // Director views
       case 'director-dashboard':

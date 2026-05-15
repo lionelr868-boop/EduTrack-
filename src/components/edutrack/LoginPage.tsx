@@ -445,24 +445,41 @@ export default function LoginPage() {
               </CardContent>
             </Card>
 
-            {/* Register Link */}
+            {/* Register Links */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.7, duration: 0.5 }}
-              className="mt-6 text-center"
+              className="mt-6 space-y-3"
             >
-              <p className="text-muted-foreground text-sm">
+              <p className="text-muted-foreground text-sm text-center">
                 ليس لديك حساب؟{' '}
                 <button
                   type="button"
                   onClick={() => setCurrentView('register')}
                   className="text-edutrack-primary font-semibold hover:underline inline-flex items-center gap-1"
                 >
-                  سجّل الآن
+                  سجّل كمدير مؤسسة
                   <ArrowLeft className="h-3 w-3" />
                 </button>
               </p>
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-gray-200" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-edutrack-light px-2 text-muted-foreground">أو</span>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentView('register-parent')}
+                className="w-full h-11 font-medium rounded-lg border-2 border-emerald-300 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-400 transition-all"
+              >
+                <Users className="h-4 w-4 ml-2" />
+                تسجيل كولي أمر
+              </Button>
             </motion.div>
           </motion.form>
         </div>

@@ -1317,6 +1317,15 @@ function CTASection() {
             >
               مقارنة الخطط
             </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full rounded-2xl border-2 border-emerald-400/40 bg-emerald-500/10 px-8 py-6 text-base font-semibold text-emerald-300 hover:border-emerald-400/60 hover:bg-emerald-500/20 sm:w-auto sm:text-lg"
+              onClick={() => setCurrentView('register-parent')}
+            >
+              <Users className="ml-2 h-5 w-5" />
+              تسجيل كولي أمر
+            </Button>
           </div>
         </motion.div>
       </div>

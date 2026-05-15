@@ -4,6 +4,7 @@ export type ViewType =
   | 'landing' 
   | 'login' 
   | 'register' 
+  | 'register-parent'
   | 'director-dashboard'
   | 'director-schedule'
   | 'director-students'
