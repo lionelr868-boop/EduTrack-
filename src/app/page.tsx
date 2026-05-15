@@ -35,6 +35,13 @@ const SectionsView = dynamic(() => import('@/components/edutrack/SectionsView'),
 const MessagingView = dynamic(() => import('@/components/edutrack/MessagingView'), { ssr: false });
 const ParentMessagingView = dynamic(() => import('@/components/edutrack/ParentMessagingView'), { ssr: false });
 const TeacherSettingsView = dynamic(() => import('@/components/edutrack/TeacherSettingsView'), { ssr: false });
+const AdminDashboard = dynamic(() => import('@/components/edutrack/AdminDashboard'), { ssr: false });
+const AdminInstitutionsView = dynamic(() => import('@/components/edutrack/AdminInstitutionsView'), { ssr: false });
+const AdminPaymentsView = dynamic(() => import('@/components/edutrack/AdminPaymentsView'), { ssr: false });
+const AdminLandingView = dynamic(() => import('@/components/edutrack/AdminLandingView'), { ssr: false });
+const AdminUsersView = dynamic(() => import('@/components/edutrack/AdminUsersView'), { ssr: false });
+const AdminSettingsView = dynamic(() => import('@/components/edutrack/AdminSettingsView'), { ssr: false });
+const TeacherRegisterPage = dynamic(() => import('@/components/edutrack/TeacherRegisterPage'), { ssr: false });
 
 function LoadingSpinner() {
   return (
@@ -122,6 +129,24 @@ export default function Home() {
         return <DashboardLayout><ParentGradesView /></DashboardLayout>;
       case 'parent-children':
         return <DashboardLayout><ParentChildrenView /></DashboardLayout>;
+
+      // Admin views
+      case 'admin-dashboard':
+        return <DashboardLayout><AdminDashboard /></DashboardLayout>;
+      case 'admin-institutions':
+        return <DashboardLayout><AdminInstitutionsView /></DashboardLayout>;
+      case 'admin-payments':
+        return <DashboardLayout><AdminPaymentsView /></DashboardLayout>;
+      case 'admin-landing':
+        return <DashboardLayout><AdminLandingView /></DashboardLayout>;
+      case 'admin-users':
+        return <DashboardLayout><AdminUsersView /></DashboardLayout>;
+      case 'admin-settings':
+        return <DashboardLayout><AdminSettingsView /></DashboardLayout>;
+
+      // Teacher registration
+      case 'register-teacher':
+        return <TeacherRegisterPage />;
 
       default:
         return <LandingPage />;

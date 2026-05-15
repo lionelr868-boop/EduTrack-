@@ -32,13 +32,20 @@ export type ViewType =
   | 'parent-messages'
   | 'parent-settings'
   | 'parent-grades'
-  | 'parent-children';
+  | 'parent-children'
+  | 'admin-dashboard'
+  | 'admin-institutions'
+  | 'admin-payments'
+  | 'admin-landing'
+  | 'admin-users'
+  | 'admin-settings'
+  | 'register-teacher';
 
 interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: 'DIRECTOR' | 'TEACHER' | 'PARENT';
+  role: 'DIRECTOR' | 'TEACHER' | 'PARENT' | 'ADMIN';
   institutionId: string;
   teacherId?: string;
   parentId?: string;

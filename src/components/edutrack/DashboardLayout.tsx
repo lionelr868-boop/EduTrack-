@@ -42,6 +42,11 @@ import {
   MessageCircle,
   PenLine,
   UsersRound,
+  Shield,
+  CreditCard,
+  Globe,
+  FileText,
+  Snowflake,
 } from 'lucide-react';
 
 interface NavItem {
@@ -87,20 +92,31 @@ const parentNavItems: NavItem[] = [
   { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'parent-settings' },
 ];
 
+const adminNavItems: NavItem[] = [
+  { label: 'لوحة التحكم', icon: <LayoutDashboard className="h-5 w-5" />, view: 'admin-dashboard' },
+  { label: 'المؤسسات', icon: <Building2 className="h-5 w-5" />, view: 'admin-institutions' },
+  { label: 'المدفوعات', icon: <CreditCard className="h-5 w-5" />, view: 'admin-payments' },
+  { label: 'صفحة الهبوط', icon: <Globe className="h-5 w-5" />, view: 'admin-landing' },
+  { label: 'المستخدمون', icon: <Users className="h-5 w-5" />, view: 'admin-users' },
+  { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'admin-settings' },
+];
+
 function getNavItems(role: string): NavItem[] {
   switch (role) {
     case 'DIRECTOR': return directorNavItems;
     case 'TEACHER': return teacherNavItems;
     case 'PARENT': return parentNavItems;
+    case 'ADMIN': return adminNavItems;
     default: return directorNavItems;
   }
 }
 
 function getRoleLabel(role: string): string {
   switch (role) {
-    case 'DIRECTOR': return 'مدير';
+    case 'DIRECTOR': return 'مدير مؤسسة';
     case 'TEACHER': return 'أستاذ';
     case 'PARENT': return 'ولي أمر';
+    case 'ADMIN': return 'مدير النظام';
     default: return 'مستخدم';
   }
 }
@@ -110,6 +126,7 @@ function getNotificationsView(role: string): ViewType {
     case 'DIRECTOR': return 'director-notifications';
     case 'TEACHER': return 'teacher-notifications';
     case 'PARENT': return 'parent-notifications';
+    case 'ADMIN': return 'admin-dashboard';
     default: return 'director-notifications';
   }
 }
@@ -307,17 +324,31 @@ function HeaderContent() {
         </Button>
       )}
 
-      {/* Institution Name */}
+      {/* Institution Name / Admin Badge */}
       <div className="hidden sm:flex items-center gap-2">
-        {instData.logo ? (
-          <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
-            <img src={instData.logo} alt="شعار" className="h-7 w-7 object-contain" />
-          </div>
-        ) : null}
-        <div>
-          <h2 className="text-sm font-bold text-edutrack-dark">{instData.name || 'لوحة التحكم'}</h2>
-          <p className="text-[10px] text-muted-foreground">لوحة التحكم</p>
-        </div>
+        {user.role === 'ADMIN' ? (
+          <>
+            <div className="h-8 w-8 rounded-lg bg-edutrack-primary/10 flex items-center justify-center">
+              <Shield className="h-5 w-5 text-edutrack-primary" />
+            </div>
+            <div>
+              <h2 className="text-sm font-bold text-edutrack-dark">مدير النظام</h2>
+              <p className="text-[10px] text-muted-foreground">لوحة تحكم شاملة</p>
+            </div>
+          </>
+        ) : (
+          <>
+            {instData.logo ? (
+              <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center bg-gray-50">
+                <img src={instData.logo} alt="شعار" className="h-7 w-7 object-contain" />
+              </div>
+            ) : null}
+            <div>
+              <h2 className="text-sm font-bold text-edutrack-dark">{instData.name || 'لوحة التحكم'}</h2>
+              <p className="text-[10px] text-muted-foreground">لوحة التحكم</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Spacer */}
@@ -407,7 +438,7 @@ function HeaderContent() {
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => {
-              const settingsView = user.role === 'TEACHER' ? 'teacher-settings' : user.role === 'PARENT' ? 'parent-settings' : 'director-settings';
+              const settingsView = user.role === 'TEACHER' ? 'teacher-settings' : user.role === 'PARENT' ? 'parent-settings' : user.role === 'ADMIN' ? 'admin-settings' : 'director-settings';
               setCurrentView(settingsView as ViewType);
             }}
             className="cursor-pointer flex-row-reverse justify-end gap-2"

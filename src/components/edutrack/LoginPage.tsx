@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useAppStore } from '@/store/useAppStore';
+import { useAppStore, ViewType } from '@/store/useAppStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,18 +28,20 @@ import {
   TrendingUp,
 } from 'lucide-react';
 
-type RoleType = 'DIRECTOR' | 'TEACHER' | 'PARENT';
+type RoleType = 'DIRECTOR' | 'TEACHER' | 'PARENT' | 'ADMIN';
 
 const demoCredentials: Record<RoleType, { email: string; password: string }> = {
   DIRECTOR: { email: 'director1@edutrack.dz', password: 'demo123' },
   TEACHER: { email: 'teacher1@edutrack.dz', password: 'demo123' },
   PARENT: { email: 'parent1@edutrack.dz', password: 'demo123' },
+  ADMIN: { email: 'admin@edutrack.dz', password: 'demo123' },
 };
 
 const roleConfig: Record<RoleType, { label: string; icon: React.ReactNode; color: string }> = {
   DIRECTOR: { label: 'مدير', icon: <Shield className="h-4 w-4" />, color: 'bg-edutrack-primary' },
   TEACHER: { label: 'أستاذ', icon: <BookOpen className="h-4 w-4" />, color: 'bg-edutrack-secondary' },
   PARENT: { label: 'ولي أمر', icon: <Users className="h-4 w-4" />, color: 'bg-emerald-500' },
+  ADMIN: { label: 'مدير النظام', icon: <Shield className="h-4 w-4" />, color: 'bg-purple-600' },
 };
 
 // ========================
@@ -155,8 +157,9 @@ export default function LoginPage() {
         DIRECTOR: 'director-dashboard',
         TEACHER: 'teacher-dashboard',
         PARENT: 'parent-dashboard',
+        ADMIN: 'admin-dashboard',
       };
-      setCurrentView(roleViewMap[data.role] as 'director-dashboard' | 'teacher-dashboard' | 'parent-dashboard');
+      setCurrentView(roleViewMap[data.role] as ViewType);
     } catch {
       setError('تعذر الاتصال بالخادم');
     } finally {
@@ -192,8 +195,9 @@ export default function LoginPage() {
         DIRECTOR: 'director-dashboard',
         TEACHER: 'teacher-dashboard',
         PARENT: 'parent-dashboard',
+        ADMIN: 'admin-dashboard',
       };
-      setCurrentView(roleViewMap[data.role] as 'director-dashboard' | 'teacher-dashboard' | 'parent-dashboard');
+      setCurrentView(roleViewMap[data.role] as ViewType);
     } catch {
       setError('تعذر الاتصال بالخادم');
     } finally {
@@ -299,7 +303,7 @@ export default function LoginPage() {
             className="mb-6"
           >
             <Label className="text-sm font-medium text-edutrack-dark mb-2 block">الدخول بصفتك</Label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {(Object.entries(roleConfig) as [RoleType, typeof roleConfig[RoleType]][]).map(([role, config]) => (
                 <button
                   key={role}
@@ -479,6 +483,15 @@ export default function LoginPage() {
               >
                 <Users className="h-4 w-4 ml-2" />
                 تسجيل كولي أمر
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentView('register-teacher')}
+                className="w-full h-11 font-medium rounded-lg border-2 border-edutrack-secondary/40 text-edutrack-secondary hover:bg-edutrack-secondary/5 hover:border-edutrack-secondary transition-all"
+              >
+                <BookOpen className="h-4 w-4 ml-2" />
+                تسجيل كأستاذ
               </Button>
             </motion.div>
           </motion.form>

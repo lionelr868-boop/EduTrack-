@@ -29,6 +29,11 @@ model Institution {
   invoiceTemplate  String?
   reminderTemplate String?
   subscriptionPlan String   @default("FREE") // FREE, BASIC, PREMIUM
+  frozen           Boolean   @default(false)
+  frozenAt         DateTime?
+  frozenReason     String?
+  maxStudents      Int       @default(50) // per plan limits
+  subscriptionExpiresAt DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -42,6 +47,7 @@ model Institution {
   years         Year[]
   sections      Section[]
   conversations Conversation[]
+  payments      Payment[]
 }
 
 model User {
@@ -49,7 +55,8 @@ model User {
   name          String
   email         String   @unique
   password      String
-  role          String   @default("DIRECTOR") // DIRECTOR, TEACHER, PARENT
+  role          String   @default("DIRECTOR") // DIRECTOR, TEACHER, PARENT, ADMIN
+  active         Boolean  @default(true)
   institutionId String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -284,6 +291,35 @@ model Report {
   generatedAt   DateTime @default(now())
 
   institution Institution @relation(fields: [institutionId], references: [id])
+}
+
+model Payment {
+  id              String   @id @default(cuid())
+  institutionId   String
+  amount          Float
+  plan            String   // FREE, BASIC, PREMIUM
+  periodMonths    Int      @default(1)
+  status          String   @default("PENDING") // PENDING, PAID, FAILED, REFUNDED
+  paymentMethod   String?  // CCP, BARIDIMOB, CASH, BANK_TRANSFER
+  transactionRef  String?
+  notes           String?
+  paidAt          DateTime?
+  dueDate         DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  institution Institution @relation(fields: [institutionId], references: [id])
+}
+
+model LandingContent {
+  id        String   @id @default(cuid())
+  section   String   @unique // hero, features, pricing, testimonials, footer, stats
+  title     String?
+  subtitle  String?
+  content   String?  // JSON string for flexible content
+  enabled   Boolean  @default(true)
+  order     Int      @default(0)
+  updatedAt DateTime @updatedAt
 }
 
 model Pricing {

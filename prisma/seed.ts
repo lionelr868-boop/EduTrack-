@@ -12,6 +12,8 @@ async function main() {
   await db.notification.deleteMany();
   await db.report.deleteMany();
   await db.pricing.deleteMany();
+  await db.payment.deleteMany();
+  await db.landingContent.deleteMany();
   await db.session.deleteMany();
   await db.student.deleteMany();
   await db.section.deleteMany();
@@ -162,6 +164,21 @@ async function main() {
   }
 
   console.log(`✅ تم إنشاء ${directors.length} مدير مؤسسة`);
+
+  // ========================
+  // 4b. Create System Admin
+  // ========================
+  const adminUser = await db.user.create({
+    data: {
+      name: 'مدير النظام',
+      email: 'admin@edutrack.dz',
+      password: 'hashed_demo123',
+      role: 'ADMIN',
+      institutionId: institutions[0].id, // Workaround: all users need an institutionId
+    },
+  });
+
+  console.log(`✅ تم إنشاء مستخدم مدير النظام: ${adminUser.email}`);
 
   // ========================
   // 5. Create Teachers (one subject, one level each)
@@ -772,6 +789,211 @@ async function main() {
 
   console.log(`✅ تم إنشاء ${reportCount} تقرير`);
 
+  // ========================
+  // 14. Create Payments
+  // ========================
+  const paymentsData = [
+    {
+      institutionId: institutions[0].id,
+      amount: 15000,
+      plan: 'PREMIUM',
+      periodMonths: 12,
+      status: 'PAID',
+      paymentMethod: 'CCP',
+      transactionRef: 'CCP-2025-001',
+      notes: 'اشتراك سنوي برومزي',
+      paidAt: new Date(2025, 0, 15),
+      dueDate: new Date(2025, 0, 1),
+    },
+    {
+      institutionId: institutions[1].id,
+      amount: 5000,
+      plan: 'BASIC',
+      periodMonths: 6,
+      status: 'PENDING',
+      paymentMethod: 'BARIDIMOB',
+      transactionRef: 'BAR-2025-002',
+      notes: 'اشتراك نصفي أساسي - بانتظار التأكيد',
+      paidAt: null,
+      dueDate: new Date(2025, 2, 1),
+    },
+    {
+      institutionId: institutions[2].id,
+      amount: 15000,
+      plan: 'PREMIUM',
+      periodMonths: 12,
+      status: 'PAID',
+      paymentMethod: 'BANK_TRANSFER',
+      transactionRef: 'BANK-2025-003',
+      notes: 'تحويل بنكي - اشتراك سنوي برومزي',
+      paidAt: new Date(2025, 1, 10),
+      dueDate: new Date(2025, 1, 1),
+    },
+    {
+      institutionId: institutions[3].id,
+      amount: 5000,
+      plan: 'BASIC',
+      periodMonths: 6,
+      status: 'FAILED',
+      paymentMethod: 'CCP',
+      transactionRef: 'CCP-2025-004',
+      notes: 'فشل عملية الدفع - رصيد غير كافٍ',
+      paidAt: null,
+      dueDate: new Date(2025, 3, 1),
+    },
+    {
+      institutionId: institutions[0].id,
+      amount: 8000,
+      plan: 'PREMIUM',
+      periodMonths: 6,
+      status: 'PENDING',
+      paymentMethod: null,
+      transactionRef: null,
+      notes: 'تجديد اشتراك برومزي - لم يتم الدفع بعد',
+      paidAt: null,
+      dueDate: new Date(2025, 5, 1),
+    },
+    {
+      institutionId: institutions[2].id,
+      amount: 3000,
+      plan: 'BASIC',
+      periodMonths: 3,
+      status: 'FAILED',
+      paymentMethod: 'CASH',
+      transactionRef: null,
+      notes: 'دفع نقدي غير مكتمل',
+      paidAt: null,
+      dueDate: new Date(2025, 4, 1),
+    },
+  ];
+
+  for (const paymentData of paymentsData) {
+    await db.payment.create({ data: paymentData });
+  }
+
+  console.log(`✅ تم إنشاء ${paymentsData.length} سجل دفع`);
+
+  // ========================
+  // 15. Create Landing Content
+  // ========================
+  const landingContentData = [
+    {
+      section: 'hero',
+      title: 'إديوتراك - منصة إدارة المؤسسات التعليمية',
+      subtitle: 'الحل الأمثل لإدارة مدارسكم ومراكز الدعم المدرسي بكل سهولة وكفاءة',
+      content: JSON.stringify({
+        ctaText: 'ابدأ مجاناً',
+        ctaLink: '/register',
+        secondaryCtaText: 'شاهد العرض التوضيحي',
+        secondaryCtaLink: '#features',
+        backgroundImage: null,
+      }),
+      enabled: true,
+      order: 1,
+    },
+    {
+      section: 'features',
+      title: 'مميزات المنصة',
+      subtitle: 'كل ما تحتاجه لإدارة مؤسستك التعليمية في مكان واحد',
+      content: JSON.stringify([
+        { icon: 'users', title: 'إدارة التلاميذ', description: 'تسجيل ومتابعة التلاميذ وإدارة أقسامهم وبياناتهم' },
+        { icon: 'calendar', title: 'جدولة الحصص', description: 'تنظيم الجدول الزمني وإدارة الحصص الأسبوعية بسهولة' },
+        { icon: 'clipboard-check', title: 'تتبع الحضور والغياب', description: 'تسجيل الحضور والغياب مع إشعار أولياء الأمور تلقائياً' },
+        { icon: 'receipt', title: 'الفواتير والمدفوعات', description: 'إنشاء الفواتير وتتبع المدفوعات وإدارة الفواتير المتأخرة' },
+        { icon: 'message-circle', title: 'التواصل الفوري', description: 'تواصل مباشر بين الأساتذة وأولياء الأمور والإدارة' },
+        { icon: 'bar-chart', title: 'التقارير والإحصائيات', description: 'تقارير مفصلة وإحصائيات شاملة لمتابعة أداء المؤسسة' },
+      ]),
+      enabled: true,
+      order: 2,
+    },
+    {
+      section: 'pricing',
+      title: 'خطط الاشتراك',
+      subtitle: 'اختر الخطة المناسبة لمؤسستكم',
+      content: JSON.stringify([
+        {
+          name: 'مجاني',
+          plan: 'FREE',
+          price: 0,
+          period: 'شهري',
+          features: ['حتى 50 تلميذ', 'مدير واحد', 'إدارة أساسية', 'تقارير محدودة'],
+          highlighted: false,
+        },
+        {
+          name: 'أساسي',
+          plan: 'BASIC',
+          price: 2500,
+          period: 'شهري',
+          features: ['حتى 200 تلميذ', '5 أساتذة', 'إدارة كاملة', 'تقارير مفصلة', 'إشعارات بالبريد'],
+          highlighted: false,
+        },
+        {
+          name: 'برومزي',
+          plan: 'PREMIUM',
+          price: 5000,
+          period: 'شهري',
+          features: ['تلاميذ غير محدودين', 'أساتذة غير محدودين', 'جميع المميزات', 'تقارير متقدمة', 'إشعارات SMS وبريد', 'دعم فني أولوي', 'API متقدم'],
+          highlighted: true,
+        },
+      ]),
+      enabled: true,
+      order: 3,
+    },
+    {
+      section: 'testimonials',
+      title: 'ماذا يقول عملاؤنا',
+      subtitle: 'آراء مديري المؤسسات التعليمية الذين يثقون بنا',
+      content: JSON.stringify([
+        { name: 'أسماء بن عمر', role: 'مديرة مدرسة النور الخاصة', text: 'إديوتراك غيّر طريقة إدارتنا للمدرسة بالكامل. الآن نتابع كل شيء بسهولة.', rating: 5 },
+        { name: 'كريم بوزيد', role: 'مدير مركز الأمل', text: 'نظام الفواتير والحضور وفّر لنا ساعات من العمل اليومي. أنصح به بشدة.', rating: 5 },
+        { name: 'فاطمة زهراء مراد', role: 'مديرة أكاديمية الفجر', text: 'التواصل مع أولياء الأمور أصبح أسهل بكثير. المنصة ساعدتنا كثيراً.', rating: 4 },
+      ]),
+      enabled: true,
+      order: 4,
+    },
+    {
+      section: 'stats',
+      title: 'أرقامنا تتحدث',
+      subtitle: 'نفتخر بثقة مئات المؤسسات التعليمية في الجزائر',
+      content: JSON.stringify([
+        { label: 'مؤسسة تعليمية', value: '500+', icon: 'school' },
+        { label: 'تلميذ مسجل', value: '50,000+', icon: 'graduation-cap' },
+        { label: 'أستاذ نشط', value: '2,000+', icon: 'chalkboard-teacher' },
+        { label: 'فاتورة معالجة', value: '100,000+', icon: 'file-text' },
+      ]),
+      enabled: true,
+      order: 5,
+    },
+    {
+      section: 'footer',
+      title: 'إديوتراك',
+      subtitle: 'منصة إدارة المؤسسات التعليمية في الجزائر',
+      content: JSON.stringify({
+        links: [
+          { label: 'الرئيسية', href: '/' },
+          { label: 'المميزات', href: '#features' },
+          { label: 'الأسعار', href: '#pricing' },
+          { label: 'اتصل بنا', href: '/contact' },
+        ],
+        social: [
+          { platform: 'facebook', url: 'https://facebook.com/edutrack.dz' },
+          { platform: 'instagram', url: 'https://instagram.com/edutrack.dz' },
+        ],
+        contactEmail: 'contact@edutrack.dz',
+        contactPhone: '0555-000-000',
+        copyright: '© 2025 إديوتراك. جميع الحقوق محفوظة.',
+      }),
+      enabled: true,
+      order: 6,
+    },
+  ];
+
+  for (const contentData of landingContentData) {
+    await db.landingContent.create({ data: contentData });
+  }
+
+  console.log(`✅ تم إنشاء ${landingContentData.length} محتوى صفحة الهبوط`);
+
   // Final Summary
   console.log('\n========================================');
   console.log('🎉 تم ملء قاعدة البيانات بنجاح!');
@@ -789,9 +1011,12 @@ async function main() {
   console.log(`💵 إجمالي الإيرادات: ${totalRevenue.toLocaleString()} دج`);
   console.log(`🔔 الإشعارات: ${notificationCount}`);
   console.log(`📋 التقارير: ${reportCount}`);
+  console.log(`💳 المدفوعات: ${paymentsData.length}`);
+  console.log(`📄 محتوى صفحة الهبوط: ${landingContentData.length}`);
   console.log('========================================');
   console.log('\n🔑 بيانات الدخول التجريبية:');
-  console.log('  مدير: director1@edutrack.dz / demo123');
+  console.log('  مدير النظام: admin@edutrack.dz / demo123');
+  console.log('  مدير مؤسسة: director1@edutrack.dz / demo123');
   console.log('  أستاذ: teacher1@edutrack.dz / demo123');
   console.log('  ولي أمر: parent1@edutrack.dz / demo123');
 }
