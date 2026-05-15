@@ -1000,12 +1000,12 @@ function PricingSection() {
       const parsed = JSON.parse(pricingContent.content);
       if (Array.isArray(parsed)) {
         dynamicPlans = parsed.map(p => ({
-          name: p.name || '',
+          name: p.name,
           subtitle: p.subtitle || (p.plan === 'FREE' ? 'للمؤسسات الصغيرة' : p.plan === 'BASIC' ? 'للمؤسسات المتوسطة' : 'للمؤسسات الكبيرة'),
-          price: typeof p.price === 'number' ? p.price.toLocaleString() : (p.price || '0'),
+          price: p.price.toLocaleString(),
           description: p.description || (p.plan === 'FREE' ? 'ابدأ مجاناً واستكشف المنصة' : p.plan === 'BASIC' ? 'الأكثر شعبية للمؤسسات النامية' : 'حل شامل للمؤسسات الكبرى'),
           popular: p.highlighted || p.plan === 'BASIC',
-          features: Array.isArray(p.features) ? p.features : []
+          features: p.features || []
         }));
       }
     } catch (e) {
@@ -1027,7 +1027,7 @@ function PricingSection() {
           </Badge>
           <h2 className="mb-4 text-2xl font-extrabold text-edutrack-dark sm:text-4xl">
             {pricingContent?.subtitle ? (
-              <span dangerouslySetInnerHTML={{ __html: String(pricingContent.subtitle).replace('مرنة ومناسبة', '<span class="gradient-text">مرنة ومناسبة</span>') }} />
+              <span dangerouslySetInnerHTML={{ __html: pricingContent.subtitle.replace('مرنة ومناسبة', '<span class="gradient-text">مرنة ومناسبة</span>') }} />
             ) : (
               <>أسعار <span className="gradient-text">مرنة ومناسبة</span></>
             )}
