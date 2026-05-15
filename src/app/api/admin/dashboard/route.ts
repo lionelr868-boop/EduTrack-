@@ -3,217 +3,108 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    // Verify admin role
     const userRole = request.headers.get('x-user-role');
     if (userRole !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'غير مصرح لك بالوصول' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'غير مصرح لك بالوصول' }, { status: 403 });
     }
 
-    // Total institutions
+    // Sequential lightweight queries to avoid memory spikes
     const totalInstitutions = await db.institution.count();
-    const activeInstitutions = await db.institution.count({
-      where: { frozen: false },
-    });
-    const frozenInstitutions = await db.institution.count({
-      where: { frozen: true },
-    });
-
-    // Institutions by plan
-    const institutionsByPlan = await db.institution.groupBy({
-      by: ['subscriptionPlan'],
-      _count: { id: true },
-    });
-
-    // Total users by role
-    const usersByRole = await db.user.groupBy({
-      by: ['role'],
-      _count: { id: true },
-    });
-
-    // Total students, teachers, parents
+    const activeInstitutions = await db.institution.count({ where: { frozen: false } });
+    const frozenInstitutions = await db.institution.count({ where: { frozen: true } });
+    const institutionsByPlan = await db.institution.groupBy({ by: ['subscriptionPlan'], _count: { id: true } });
+    const usersByRole = await db.user.groupBy({ by: ['role'], _count: { id: true } });
     const totalStudents = await db.student.count();
     const totalTeachers = await db.teacher.count();
     const totalParents = await db.parent.count();
 
-    // Revenue from paid invoices
-    const paidInvoicesAggregate = await db.invoice.aggregate({
-      where: { status: 'PAID' },
-      _sum: { amount: true },
-    });
-    const totalRevenue = paidInvoicesAggregate._sum.amount || 0;
+    const paidInvoicesAggregate = await db.invoice.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } });
+    const pendingInvoicesAggregate = await db.invoice.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } });
 
-    // Pending payments
-    const pendingInvoicesAggregate = await db.invoice.aggregate({
-      where: { status: 'PENDING' },
-      _sum: { amount: true },
-    });
-    const pendingPayments = pendingInvoicesAggregate._sum.amount || 0;
-
-    // Recent institutions (last 5)
     const recentInstitutions = await db.institution.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
       select: {
-        id: true,
-        name: true,
-        subscriptionPlan: true,
-        frozen: true,
-        createdAt: true,
-        city: true,
-        _count: {
-          select: {
-            students: true,
-            teachers: true,
-            users: true,
-          },
-        },
+        id: true, name: true, subscriptionPlan: true, frozen: true, createdAt: true, city: true,
+        _count: { select: { students: true, teachers: true, users: true } },
       },
     });
 
-    // Recent payments
     const recentPayments = await db.payment.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
-      include: {
-        institution: {
-          select: { id: true, name: true },
-        },
-      },
+      include: { institution: { select: { id: true, name: true } } },
     });
 
-    // Monthly revenue trend (last 6 months)
+    // Simplified monthly revenue - single query approach
     const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+
+    const recentPaidInvoices = await db.invoice.findMany({
+      where: { status: 'PAID', paidAt: { gte: sixMonthsAgo } },
+      select: { amount: true, paidAt: true },
+    });
+
+    const recentPaidPayments = await db.payment.findMany({
+      where: { status: 'PAID', paidAt: { gte: sixMonthsAgo } },
+      select: { amount: true, paidAt: true },
+    });
+
     const monthlyRevenue = [];
     for (let i = 5; i >= 0; i--) {
-      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-
-      const monthRevenue = await db.invoice.aggregate({
-        where: {
-          status: 'PAID',
-          paidAt: {
-            gte: monthDate,
-            lte: monthEnd,
-          },
-        },
-        _sum: { amount: true },
-      });
-
-      const paymentRevenue = await db.payment.aggregate({
-        where: {
-          status: 'PAID',
-          paidAt: {
-            gte: monthDate,
-            lte: monthEnd,
-          },
-        },
-        _sum: { amount: true },
-      });
-
+      const invSum = recentPaidInvoices
+        .filter(inv => inv.paidAt && new Date(inv.paidAt) >= monthStart && new Date(inv.paidAt) <= monthEnd)
+        .reduce((sum, inv) => sum + (inv.amount || 0), 0);
+      const paySum = recentPaidPayments
+        .filter(p => p.paidAt && new Date(p.paidAt) >= monthStart && new Date(p.paidAt) <= monthEnd)
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
       monthlyRevenue.push({
-        month: monthDate.toLocaleDateString('ar-DZ', { month: 'long', year: 'numeric' }),
-        invoiceRevenue: monthRevenue._sum.amount || 0,
-        paymentRevenue: paymentRevenue._sum.amount || 0,
-        total: (monthRevenue._sum.amount || 0) + (paymentRevenue._sum.amount || 0),
+        month: monthStart.toLocaleDateString('ar-DZ', { month: 'long', year: 'numeric' }),
+        invoiceRevenue: invSum,
+        paymentRevenue: paySum,
+        total: invSum + paySum,
       });
     }
 
-    // Platform growth metrics
+    // Growth
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const twoMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const newInstThis = await db.institution.count({ where: { createdAt: { gte: lastMonth } } });
+    const newInstLast = await db.institution.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
+    const newStuThis = await db.student.count({ where: { createdAt: { gte: lastMonth } } });
+    const newStuLast = await db.student.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
+    const newUsrThis = await db.user.count({ where: { createdAt: { gte: lastMonth } } });
+    const newUsrLast = await db.user.count({ where: { createdAt: { gte: twoMonthsAgo, lt: lastMonth } } });
 
-    const newInstitutionsThisMonth = await db.institution.count({
-      where: { createdAt: { gte: lastMonth } },
-    });
-    const newInstitutionsLastMonth = await db.institution.count({
-      where: {
-        createdAt: { gte: twoMonthsAgo, lt: lastMonth },
-      },
-    });
-
-    const newStudentsThisMonth = await db.student.count({
-      where: { createdAt: { gte: lastMonth } },
-    });
-    const newStudentsLastMonth = await db.student.count({
-      where: {
-        createdAt: { gte: twoMonthsAgo, lt: lastMonth },
-      },
-    });
-
-    const newUsersThisMonth = await db.user.count({
-      where: { createdAt: { gte: lastMonth } },
-    });
-    const newUsersLastMonth = await db.user.count({
-      where: {
-        createdAt: { gte: twoMonthsAgo, lt: lastMonth },
-      },
-    });
-
-    const institutionGrowth = newInstitutionsLastMonth > 0
-      ? ((newInstitutionsThisMonth - newInstitutionsLastMonth) / newInstitutionsLastMonth * 100).toFixed(1)
-      : newInstitutionsThisMonth > 0 ? '100.0' : '0.0';
-
-    const studentGrowth = newStudentsLastMonth > 0
-      ? ((newStudentsThisMonth - newStudentsLastMonth) / newStudentsLastMonth * 100).toFixed(1)
-      : newStudentsThisMonth > 0 ? '100.0' : '0.0';
-
-    const userGrowth = newUsersLastMonth > 0
-      ? ((newUsersThisMonth - newUsersLastMonth) / newUsersLastMonth * 100).toFixed(1)
-      : newUsersThisMonth > 0 ? '100.0' : '0.0';
+    const calcGrowth = (curr: number, prev: number) =>
+      prev > 0 ? ((curr - prev) / prev * 100).toFixed(1) : curr > 0 ? '100.0' : '0.0';
 
     return NextResponse.json({
       institutions: {
-        total: totalInstitutions,
-        active: activeInstitutions,
-        frozen: frozenInstitutions,
-        byPlan: institutionsByPlan.map((item) => ({
-          plan: item.subscriptionPlan,
-          count: item._count.id,
-        })),
+        total: totalInstitutions, active: activeInstitutions, frozen: frozenInstitutions,
+        byPlan: institutionsByPlan.map(item => ({ plan: item.subscriptionPlan, count: item._count.id })),
       },
       users: {
-        byRole: usersByRole.map((item) => ({
-          role: item.role,
-          count: item._count.id,
-        })),
+        byRole: usersByRole.map(item => ({ role: item.role, count: item._count.id })),
         total: usersByRole.reduce((sum, item) => sum + item._count.id, 0),
       },
       students: totalStudents,
       teachers: totalTeachers,
       parents: totalParents,
-      revenue: {
-        total: totalRevenue,
-        pending: pendingPayments,
-      },
+      revenue: { total: paidInvoicesAggregate._sum.amount || 0, pending: pendingInvoicesAggregate._sum.amount || 0 },
       recentInstitutions,
       recentPayments,
       monthlyRevenue,
       growth: {
-        institutions: {
-          thisMonth: newInstitutionsThisMonth,
-          lastMonth: newInstitutionsLastMonth,
-          growthPercent: institutionGrowth,
-        },
-        students: {
-          thisMonth: newStudentsThisMonth,
-          lastMonth: newStudentsLastMonth,
-          growthPercent: studentGrowth,
-        },
-        users: {
-          thisMonth: newUsersThisMonth,
-          lastMonth: newUsersLastMonth,
-          growthPercent: userGrowth,
-        },
+        institutions: { thisMonth: newInstThis, lastMonth: newInstLast, growthPercent: calcGrowth(newInstThis, newInstLast) },
+        students: { thisMonth: newStuThis, lastMonth: newStuLast, growthPercent: calcGrowth(newStuThis, newStuLast) },
+        users: { thisMonth: newUsrThis, lastMonth: newUsrLast, growthPercent: calcGrowth(newUsrThis, newUsrLast) },
       },
     });
   } catch (error) {
     console.error('Admin dashboard error:', error);
-    return NextResponse.json(
-      { error: 'خطأ في تحميل لوحة التحكم' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'خطأ في تحميل لوحة التحكم' }, { status: 500 });
   }
 }

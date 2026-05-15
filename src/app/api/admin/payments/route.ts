@@ -20,19 +20,11 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     const where: Record<string, unknown> = {};
+    if (status) where.status = status;
+    if (institutionId) where.institutionId = institutionId;
+    if (plan) where.plan = plan;
 
-    if (status) {
-      where.status = status;
-    }
-
-    if (institutionId) {
-      where.institutionId = institutionId;
-    }
-
-    if (plan) {
-      where.plan = plan;
-    }
-
+    // Run paginated data + count in parallel
     const [payments, total] = await Promise.all([
       db.payment.findMany({
         where,
@@ -44,7 +36,6 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               name: true,
-              email: true,
               subscriptionPlan: true,
               frozen: true,
             },
@@ -54,20 +45,35 @@ export async function GET(request: NextRequest) {
       db.payment.count({ where }),
     ]);
 
-    // Summary stats — compute across ALL payments (not just current page)
-    const [paidAgg, pendingAgg, failedAgg, totalPayments, paidCount, pendingCount, failedCount] = await Promise.all([
-      db.payment.aggregate({ where: { status: 'PAID' }, _sum: { amount: true } }),
-      db.payment.aggregate({ where: { status: 'PENDING' }, _sum: { amount: true } }),
-      db.payment.aggregate({ where: { status: 'FAILED' }, _sum: { amount: true } }),
-      db.payment.count(),
-      db.payment.count({ where: { status: 'PAID' } }),
-      db.payment.count({ where: { status: 'PENDING' } }),
-      db.payment.count({ where: { status: 'FAILED' } }),
-    ]);
+    // Summary stats — lightweight approach: get all payments and compute in JS
+    const allPayments = await db.payment.findMany({
+      select: { amount: true, status: true },
+    });
 
-    const paidAmount = paidAgg._sum.amount || 0;
-    const pendingAmount = pendingAgg._sum.amount || 0;
-    const failedAmount = failedAgg._sum.amount || 0;
+    const summary = {
+      totalAmount: 0,
+      paidAmount: 0,
+      pendingAmount: 0,
+      failedAmount: 0,
+      totalPayments: allPayments.length,
+      paidCount: 0,
+      pendingCount: 0,
+      failedCount: 0,
+    };
+
+    for (const p of allPayments) {
+      summary.totalAmount += p.amount || 0;
+      if (p.status === 'PAID') {
+        summary.paidAmount += p.amount || 0;
+        summary.paidCount++;
+      } else if (p.status === 'PENDING') {
+        summary.pendingAmount += p.amount || 0;
+        summary.pendingCount++;
+      } else if (p.status === 'FAILED') {
+        summary.failedAmount += p.amount || 0;
+        summary.failedCount++;
+      }
+    }
 
     return NextResponse.json({
       payments,
@@ -75,16 +81,7 @@ export async function GET(request: NextRequest) {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
-      summary: {
-        totalAmount: paidAmount + pendingAmount + failedAmount,
-        paidAmount,
-        pendingAmount,
-        failedAmount,
-        totalPayments,
-        paidCount,
-        pendingCount,
-        failedCount,
-      },
+      summary,
     });
   } catch (error) {
     console.error('Admin payments list error:', error);
@@ -125,7 +122,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate institution exists
     const institution = await db.institution.findUnique({
       where: { id: institutionId },
     });
@@ -151,11 +147,7 @@ export async function POST(request: NextRequest) {
       },
       include: {
         institution: {
-          select: {
-            id: true,
-            name: true,
-            subscriptionPlan: true,
-          },
+          select: { id: true, name: true, subscriptionPlan: true },
         },
       },
     });
