@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: false,
   compress: true,
   poweredByHeader: false,
+  output: 'standalone',
 };
 
 export default nextConfig;

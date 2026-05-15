@@ -82,6 +82,39 @@ function usePlatformStats() {
 }
 
 // ========================
+// Landing Content Hook (from DB)
+// ========================
+
+interface LandingContentItem {
+  id: string;
+  section: string;
+  title: string | null;
+  subtitle: string | null;
+  content: string | null;
+  enabled: boolean;
+  order: number;
+}
+
+function useLandingContent() {
+  const [content, setContent] = useState<LandingContentItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/landing')
+      .then((res) => res.ok ? res.json() : [])
+      .then((data) => {
+        setContent(data);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const getSection = (key: string) => content.find((c) => c.section === key);
+
+  return { content, loaded, getSection };
+}
+
+// ========================
 // Animation Variants
 // ========================
 
@@ -370,7 +403,7 @@ function NavBar() {
 // Hero Section
 // ========================
 
-function HeroSection() {
+function HeroSection({ heroContent }: { heroContent?: LandingContentItem }) {
   const { setCurrentView, setDemoMode } = useAppStore();
   const { stats, loading } = usePlatformStats();
 
@@ -455,9 +488,9 @@ function HeroSection() {
             transition={{ duration: 0.7, delay: 0.2 }}
             className="mb-4 text-center text-3xl leading-tight font-extrabold sm:mb-6 sm:text-5xl md:text-6xl lg:text-7xl"
           >
-            <span className="gradient-text">تسيير مؤسستك</span>
+            <span className="gradient-text">{heroContent?.title || 'تسيير مؤسستك'}</span>
             <br />
-            <span className="text-edutrack-dark">التعليمية بذكاء</span>
+            <span className="text-edutrack-dark">{heroContent?.subtitle || 'التعليمية بذكاء'}</span>
           </motion.h1>
 
           {/* Subheading */}
@@ -467,7 +500,14 @@ function HeroSection() {
             transition={{ duration: 0.7, delay: 0.35 }}
             className="mb-8 max-w-2xl text-center text-base leading-relaxed text-edutrack-dark/60 sm:mb-10 sm:text-lg md:text-xl"
           >
-            منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير
+            {(() => {
+              try {
+                const parsed = heroContent?.content ? JSON.parse(heroContent.content) : null;
+                return parsed?.description || 'منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير';
+              } catch {
+                return heroContent?.content || 'منصة متكاملة لإدارة الحضور، الجدول الدراسي، الفوترة والتقارير';
+              }
+            })()}
             <br className="hidden sm:block" />
             صُممت خصيصاً للمؤسسات التعليمية في الجزائر
           </motion.p>
@@ -798,7 +838,7 @@ function FeaturesSection() {
 // Pricing Section
 // ========================
 
-const plans = [
+const defaultPlans = [
   {
     name: 'مجاني',
     subtitle: 'للمؤسسات الصغيرة',
@@ -816,7 +856,7 @@ const plans = [
   {
     name: 'أساسي',
     subtitle: 'للمؤسسات المتوسطة',
-    price: '5,000',
+    price: '7,000',
     description: 'الأكثر شعبية للمؤسسات النامية',
     popular: true,
     features: [
@@ -849,11 +889,32 @@ const plans = [
   },
 ];
 
+// Build plans from DB pricing content, falling back to defaults
+function buildPlansFromContent(pricingContent?: LandingContentItem) {
+  if (!pricingContent?.content) return defaultPlans;
+  try {
+    const parsed = JSON.parse(pricingContent.content);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((p: any, i: number) => ({
+        name: p.name || defaultPlans[i]?.name || '',
+        subtitle: p.subtitle || defaultPlans[i]?.subtitle || '',
+        price: p.price || defaultPlans[i]?.price || '0',
+        description: p.description || defaultPlans[i]?.description || '',
+        popular: p.popular ?? defaultPlans[i]?.popular ?? false,
+        features: p.features || defaultPlans[i]?.features || [],
+      }));
+    }
+  } catch {
+    // If content is not valid JSON, ignore and use defaults
+  }
+  return defaultPlans;
+}
+
 function PricingCard({
   plan,
   index,
 }: {
-  plan: (typeof plans)[0];
+  plan: (typeof defaultPlans)[0];
   index: number;
 }) {
   const { setCurrentView } = useAppStore();
@@ -951,7 +1012,9 @@ function PricingCard({
   );
 }
 
-function PricingSection() {
+function PricingSection({ pricingContent }: { pricingContent?: LandingContentItem }) {
+  const plans = buildPlansFromContent(pricingContent);
+
   return (
     <AnimatedSection id="pricing" className="relative bg-white py-16 sm:py-24">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -962,13 +1025,13 @@ function PricingSection() {
             className="mb-4 gap-1.5 rounded-full border-edutrack-secondary/20 bg-edutrack-secondary/5 px-4 py-1.5 text-edutrack-secondary"
           >
             <Receipt className="h-3.5 w-3.5" />
-            <span>خطط الأسعار</span>
+            <span>{pricingContent?.title || 'خطط الأسعار'}</span>
           </Badge>
           <h2 className="mb-4 text-2xl font-extrabold text-edutrack-dark sm:text-4xl">
             أسعار <span className="gradient-text">مرنة ومناسبة</span>
           </h2>
           <p className="mx-auto max-w-2xl text-sm text-edutrack-dark/50 sm:text-base">
-            اختر الخطة المناسبة لحجم مؤسستك مع إمكانية الترقية في أي وقت
+            {pricingContent?.subtitle || 'اختر الخطة المناسبة لحجم مؤسستك مع إمكانية الترقية في أي وقت'}
           </p>
         </motion.div>
 
@@ -1500,12 +1563,14 @@ function ScrollToTop() {
 // ========================
 
 export default function LandingPage() {
+  const { getSection } = useLandingContent();
+
   return (
     <div className="min-h-screen overflow-x-hidden">
       <NavBar />
-      <HeroSection />
+      <HeroSection heroContent={getSection('hero')} />
       <FeaturesSection />
-      <PricingSection />
+      <PricingSection pricingContent={getSection('pricing')} />
       <TestimonialsSection />
       <LiveActivitySection />
       <CTASection />
