@@ -11,9 +11,7 @@ export async function GET() {
     return NextResponse.json(landingContent);
   } catch (error) {
     console.error('Landing content fetch error:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch landing content' },
-      { status: 500 }
-    );
+    // Return empty array instead of 500 to prevent page crash
+    return NextResponse.json([]);
   }
 }
