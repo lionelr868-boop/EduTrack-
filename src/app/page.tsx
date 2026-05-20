@@ -22,6 +22,7 @@ const AttendanceView = dynamic(() => import('@/components/edutrack/AttendanceVie
 const TeacherDashboard = dynamic(() => import('@/components/edutrack/TeacherDashboard'), { ssr: false });
 const TeacherStudentsView = dynamic(() => import('@/components/edutrack/TeacherStudentsView'), { ssr: false });
 const TeacherAbsenceRequest = dynamic(() => import('@/components/edutrack/TeacherAbsenceRequest'), { ssr: false });
+const TeacherAbsencesView = dynamic(() => import('@/components/edutrack/TeacherAbsencesView'), { ssr: false });
 const ParentDashboard = dynamic(() => import('@/components/edutrack/ParentDashboard'), { ssr: false });
 const ParentScheduleView = dynamic(() => import('@/components/edutrack/ParentScheduleView'), { ssr: false });
 const ParentAbsencesView = dynamic(() => import('@/components/edutrack/ParentAbsencesView'), { ssr: false });
@@ -103,6 +104,8 @@ export default function Home() {
         return <DashboardLayout><TeacherStudentsView /></DashboardLayout>;
       case 'teacher-absence-request':
         return <DashboardLayout><TeacherAbsenceRequest /></DashboardLayout>;
+      case 'teacher-student-absences':
+        return <DashboardLayout><TeacherAbsencesView /></DashboardLayout>;
       case 'teacher-notifications':
         return <DashboardLayout><NotificationsView /></DashboardLayout>;
       case 'teacher-messages':

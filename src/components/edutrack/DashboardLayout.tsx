@@ -75,6 +75,7 @@ const teacherNavItems: NavItem[] = [
   { label: 'تسجيل الحضور', icon: <ClipboardCheck className="h-5 w-5" />, view: 'teacher-attendance' },
   { label: 'الطلاب', icon: <GraduationCap className="h-5 w-5" />, view: 'teacher-students' },
   { label: 'إبلاغ غياب', icon: <AlertCircle className="h-5 w-5" />, view: 'teacher-absence-request' },
+  { label: 'غيابات التلاميذ', icon: <ClipboardX className="h-5 w-5" />, view: 'teacher-student-absences' },
   { label: 'المراسلات', icon: <MessageCircle className="h-5 w-5" />, view: 'teacher-messages' },
   { label: 'الإشعارات', icon: <Bell className="h-5 w-5" />, view: 'teacher-notifications' },
   { label: 'الإعدادات', icon: <Settings className="h-5 w-5" />, view: 'teacher-settings' },

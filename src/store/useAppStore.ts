@@ -21,6 +21,7 @@ export type ViewType =
   | 'teacher-attendance'
   | 'teacher-students'
   | 'teacher-absence-request'
+  | 'teacher-student-absences'
   | 'teacher-notifications'
   | 'teacher-messages'
   | 'teacher-settings'
