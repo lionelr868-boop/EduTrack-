@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore } from '@/store/useAppStore';
 import {
@@ -61,6 +61,22 @@ export default function AbsencesView() {
   const [showStudentRegisterDialog, setShowStudentRegisterDialog] = useState(false);
   const [showCompensateDialog, setShowCompensateDialog] = useState(false);
   const [compensateAbsence, setCompensateAbsence] = useState<DemoAbsence | null>(null);
+
+  // Fetch absences from API on mount
+  useEffect(() => {
+    const fetchAbsences = async () => {
+      try {
+        const res = await fetch('/api/absences');
+        if (res.ok) {
+          const data = await res.json();
+          setAbsences(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch absences:', error);
+      }
+    };
+    fetchAbsences();
+  }, []);
 
   // Register form state
   const [regTeacherId, setRegTeacherId] = useState('');
@@ -136,71 +152,73 @@ export default function AbsencesView() {
   };
 
   // Register teacher absence
-  const handleRegisterAbsence = () => {
+  const handleRegisterAbsence = async () => {
     if (!regTeacherId || !regSessionId || !regReason.trim()) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
 
-    const teacher = DEMO_TEACHERS.find(t => t.id === regTeacherId);
-    const session = DEMO_SESSIONS.find(s => s.id === regSessionId);
+    try {
+      const res = await fetch('/api/absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          teacherId: regTeacherId,
+          sessionId: regSessionId,
+          reason: regReason,
+          absenceType: 'TEACHER',
+        }),
+      });
 
-    if (!teacher || !session) return;
-
-    const newAbsence: DemoAbsence = {
-      id: `abs${Date.now()}`,
-      teacherId: regTeacherId,
-      teacherName: teacher.name,
-      sessionId: regSessionId,
-      subjectName: session.subjectName,
-      reason: regReason,
-      absenceType: 'TEACHER',
-      notificationSent: true,
-      createdAt: new Date().toISOString(),
-      sessionDay: session.dayOfWeek,
-      sessionTime: session.startTime,
-    };
-
-    setAbsences(prev => [newAbsence, ...prev]);
-    toast.success('تم تسجيل غياب الأستاذ وإشعار أولياء الأمور');
-    setShowRegisterDialog(false);
-    setRegTeacherId('');
-    setRegSessionId('');
-    setRegReason('');
+      if (res.ok) {
+        const newAbsence = await res.json();
+        setAbsences(prev => [newAbsence, ...prev]);
+        toast.success('تم تسجيل غياب الأستاذ وإشعار أولياء الأمور');
+        setShowRegisterDialog(false);
+        setRegTeacherId('');
+        setRegSessionId('');
+        setRegReason('');
+      } else {
+        toast.error('حدث خطأ أثناء التسجيل');
+      }
+    } catch (error) {
+      toast.error('حدث خطأ في الاتصال بالخادم');
+    }
   };
 
   // Register student absence
-  const handleRegisterStudentAbsence = () => {
+  const handleRegisterStudentAbsence = async () => {
     if (!regStudentId || !regStudentSessionId || !regStudentReason.trim()) {
       toast.error('يرجى ملء جميع الحقول المطلوبة');
       return;
     }
 
-    const student = DEMO_STUDENTS.find(s => s.id === regStudentId);
-    const session = DEMO_SESSIONS.find(s => s.id === regStudentSessionId);
+    try {
+      const res = await fetch('/api/absences', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: regStudentId,
+          sessionId: regStudentSessionId,
+          reason: regStudentReason,
+          absenceType: 'STUDENT',
+        }),
+      });
 
-    if (!student || !session) return;
-
-    const newAbsence: DemoAbsence = {
-      id: `abs${Date.now()}`,
-      studentId: regStudentId,
-      studentName: student.name,
-      sessionId: regStudentSessionId,
-      subjectName: session.subjectName,
-      reason: regStudentReason,
-      absenceType: 'STUDENT',
-      notificationSent: true,
-      createdAt: new Date().toISOString(),
-      sessionDay: session.dayOfWeek,
-      sessionTime: session.startTime,
-    };
-
-    setAbsences(prev => [newAbsence, ...prev]);
-    toast.success('تم تسجيل غياب التلميذ وإشعار ولي الأمر');
-    setShowStudentRegisterDialog(false);
-    setRegStudentId('');
-    setRegStudentSessionId('');
-    setRegStudentReason('');
+      if (res.ok) {
+        const newAbsence = await res.json();
+        setAbsences(prev => [newAbsence, ...prev]);
+        toast.success('تم تسجيل غياب التلميذ وإشعار ولي الأمر');
+        setShowStudentRegisterDialog(false);
+        setRegStudentId('');
+        setRegStudentSessionId('');
+        setRegStudentReason('');
+      } else {
+        toast.error('حدث خطأ أثناء التسجيل');
+      }
+    } catch (error) {
+      toast.error('حدث خطأ في الاتصال بالخادم');
+    }
   };
 
   // Export handlers (demo)
