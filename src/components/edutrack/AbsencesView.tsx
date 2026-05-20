@@ -44,7 +44,7 @@ import {
 import {
   ClipboardCheck, Filter, UserX, Calendar, Send, RefreshCw,
   Download, FileSpreadsheet, FileText, AlertTriangle, Plus,
-  MoreVertical, Search, Check, XCircle, Bell, BellOff,
+  MoreVertical, Search, Check, XCircle, Bell, BellOff, GraduationCap,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -58,6 +58,7 @@ export default function AbsencesView() {
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
   const [showRegisterDialog, setShowRegisterDialog] = useState(false);
+  const [showStudentRegisterDialog, setShowStudentRegisterDialog] = useState(false);
   const [showCompensateDialog, setShowCompensateDialog] = useState(false);
   const [compensateAbsence, setCompensateAbsence] = useState<DemoAbsence | null>(null);
 
@@ -65,6 +66,11 @@ export default function AbsencesView() {
   const [regTeacherId, setRegTeacherId] = useState('');
   const [regSessionId, setRegSessionId] = useState('');
   const [regReason, setRegReason] = useState('');
+
+  // Register student form state
+  const [regStudentId, setRegStudentId] = useState('');
+  const [regStudentSessionId, setRegStudentSessionId] = useState('');
+  const [regStudentReason, setRegStudentReason] = useState('');
   const [regCompensateDay, setRegCompensateDay] = useState('0');
   const [regCompensateTime, setRegCompensateTime] = useState('08:00');
   const [regCompensateEndTime, setRegCompensateEndTime] = useState('09:30');
@@ -109,6 +115,14 @@ export default function AbsencesView() {
     if (!regTeacherId) return [];
     return DEMO_SESSIONS.filter(s => s.teacherId === regTeacherId && s.status === 'SCHEDULED');
   }, [regTeacherId]);
+
+  // Get sessions for selected student based on their level
+  const studentSessions = useMemo(() => {
+    if (!regStudentId) return [];
+    const student = DEMO_STUDENTS.find(s => s.id === regStudentId);
+    if (!student) return [];
+    return DEMO_SESSIONS.filter(s => s.level === student.level && s.status === 'SCHEDULED');
+  }, [regStudentId]);
 
   // Unique subjects for filter
   const uniqueSubjects = [...new Set(DEMO_ABSENCES.map(a => a.subjectName))];
@@ -155,6 +169,40 @@ export default function AbsencesView() {
     setRegReason('');
   };
 
+  // Register student absence
+  const handleRegisterStudentAbsence = () => {
+    if (!regStudentId || !regStudentSessionId || !regStudentReason.trim()) {
+      toast.error('يرجى ملء جميع الحقول المطلوبة');
+      return;
+    }
+
+    const student = DEMO_STUDENTS.find(s => s.id === regStudentId);
+    const session = DEMO_SESSIONS.find(s => s.id === regStudentSessionId);
+
+    if (!student || !session) return;
+
+    const newAbsence: DemoAbsence = {
+      id: `abs${Date.now()}`,
+      studentId: regStudentId,
+      studentName: student.name,
+      sessionId: regStudentSessionId,
+      subjectName: session.subjectName,
+      reason: regStudentReason,
+      absenceType: 'STUDENT',
+      notificationSent: true,
+      createdAt: new Date().toISOString(),
+      sessionDay: session.dayOfWeek,
+      sessionTime: session.startTime,
+    };
+
+    setAbsences(prev => [newAbsence, ...prev]);
+    toast.success('تم تسجيل غياب التلميذ وإشعار ولي الأمر');
+    setShowStudentRegisterDialog(false);
+    setRegStudentId('');
+    setRegStudentSessionId('');
+    setRegStudentReason('');
+  };
+
   // Export handlers (demo)
   const handleExportPDF = () => {
     toast.success('جاري تصدير التقرير بصيغة PDF...');
@@ -193,6 +241,13 @@ export default function AbsencesView() {
           >
             <FileSpreadsheet className="h-4 w-4" />
             Excel
+          </Button>
+          <Button
+            onClick={() => setShowStudentRegisterDialog(true)}
+            className="bg-amber-500 hover:bg-amber-600 text-white shadow-lg shadow-amber-500/25 rounded-xl gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            تسجيل غياب تلميذ
           </Button>
           <Button
             onClick={() => setShowRegisterDialog(true)}
@@ -494,6 +549,78 @@ export default function AbsencesView() {
               إلغاء
             </Button>
             <Button onClick={handleRegisterAbsence} className="bg-edutrack-primary hover:bg-edutrack-primary/90 text-white rounded-lg gap-2">
+              <Send className="h-4 w-4" />
+              تسجيل وإشعار
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Register Student Absence Dialog */}
+      <Dialog open={showStudentRegisterDialog} onOpenChange={setShowStudentRegisterDialog}>
+        <DialogContent className="max-w-lg" dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-edutrack-dark">
+              <GraduationCap className="h-5 w-5 text-amber-500" />
+              تسجيل غياب تلميذ
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">التلميذ</Label>
+              <Select value={regStudentId} onValueChange={(v) => { setRegStudentId(v); setRegStudentSessionId(''); }}>
+                <SelectTrigger className="rounded-lg">
+                  <SelectValue placeholder="اختر التلميذ" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEMO_STUDENTS.map(s => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.level})</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">الحصة</Label>
+              <Select value={regStudentSessionId} onValueChange={setRegStudentSessionId}>
+                <SelectTrigger className="rounded-lg">
+                  <SelectValue placeholder="اختر الحصة" />
+                </SelectTrigger>
+                <SelectContent>
+                  {studentSessions.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.subjectName} - {DAYS_AR[s.dayOfWeek]} {s.startTime}-{s.endTime} (أ. {s.teacherName})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">السبب</Label>
+              <Textarea
+                value={regStudentReason}
+                onChange={(e) => setRegStudentReason(e.target.value)}
+                placeholder="أدخل سبب الغياب..."
+                className="rounded-lg"
+                rows={3}
+              />
+            </div>
+
+            <div className="rounded-lg bg-blue-50 border border-blue-200 p-3 flex items-start gap-2">
+              <Bell className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+              <div className="text-xs text-blue-800">
+                <p className="font-medium">سيتم إرسال إشعار لولي أمر التلميذ فور التسجيل</p>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowStudentRegisterDialog(false)} className="rounded-lg">
+              إلغاء
+            </Button>
+            <Button onClick={handleRegisterStudentAbsence} className="bg-amber-500 hover:bg-amber-600 text-white rounded-lg gap-2">
               <Send className="h-4 w-4" />
               تسجيل وإشعار
             </Button>

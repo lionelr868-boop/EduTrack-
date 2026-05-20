@@ -81,13 +81,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/absences - Create new absence (teacher absence)
+// POST /api/absences - Create new absence (teacher or student absence)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { teacherId, sessionId, reason } = body;
+    const { teacherId, studentId, absenceType = 'TEACHER', sessionId, reason } = body;
 
-    if (!teacherId || !sessionId || !reason?.trim()) {
+    if (!sessionId || (!teacherId && !studentId)) {
       return NextResponse.json(
         { error: 'يرجى ملء جميع الحقول المطلوبة' },
         { status: 400 }
@@ -97,51 +97,75 @@ export async function POST(request: NextRequest) {
     // Create absence record
     const absence = await db.absence.create({
       data: {
-        teacherId,
+        teacherId: absenceType === 'TEACHER' ? teacherId : undefined,
+        studentId: absenceType === 'STUDENT' ? studentId : undefined,
         sessionId,
         reason,
-        absenceType: 'TEACHER',
+        absenceType,
         notificationSent: true,
       },
       include: {
         teacher: { include: { user: { select: { name: true } } } },
+        student: { select: { name: true } },
         session: { include: { subject: true } },
       },
     });
 
-    // Get affected students and notify their parents
     const session = await db.session.findUnique({
       where: { id: sessionId },
     });
 
     if (session) {
-      const students = await db.student.findMany({
-        where: {
-          institutionId: session.institutionId,
-          level: session.level,
-        },
-        include: {
-          parent: { include: { user: true } },
-        },
-      });
+      if (absenceType === 'TEACHER') {
+        // Get affected students and notify their parents
+        const students = await db.student.findMany({
+          where: {
+            institutionId: session.institutionId,
+            level: session.level,
+          },
+          include: {
+            parent: { include: { user: true } },
+          },
+        });
 
-      const notifications = students
-        .filter(s => s.parent?.user)
-        .map(s => ({
-          userId: s.parent!.user.id,
-          message: `غاب الأستاذ عن حصة ${absence.session?.subject?.name || ''} يوم ${['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][session.dayOfWeek]}. السبب: ${reason}`,
-          type: 'ABSENCE',
-        }));
+        const notifications = students
+          .filter(s => s.parent?.user)
+          .map(s => ({
+            userId: s.parent!.user.id,
+            message: `غاب الأستاذ عن حصة ${absence.session?.subject?.name || ''} يوم ${['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][session.dayOfWeek]}. السبب: ${reason}`,
+            type: 'ABSENCE',
+          }));
 
-      if (notifications.length > 0) {
-        await db.notification.createMany({ data: notifications });
+        if (notifications.length > 0) {
+          await db.notification.createMany({ data: notifications });
+        }
+      } else if (absenceType === 'STUDENT' && studentId) {
+        // Notify only this student's parent
+        const student = await db.student.findUnique({
+          where: { id: studentId },
+          include: {
+            parent: { include: { user: true } },
+          },
+        });
+
+        if (student?.parent?.user) {
+          await db.notification.create({
+            data: {
+              userId: student.parent.user.id,
+              message: `تم تسجيل غياب التلميذ ${student.name} عن حصة ${absence.session?.subject?.name || ''} يوم ${['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'][session.dayOfWeek]}. السبب: ${reason || 'غير مبرر'}`,
+              type: 'ABSENCE',
+            }
+          });
+        }
       }
     }
 
     return NextResponse.json({
       id: absence.id,
       teacherId: absence.teacherId,
+      studentId: absence.studentId,
       teacherName: absence.teacher?.user?.name,
+      studentName: absence.student?.name,
       sessionId: absence.sessionId,
       subjectName: absence.session?.subject?.name,
       reason: absence.reason,
