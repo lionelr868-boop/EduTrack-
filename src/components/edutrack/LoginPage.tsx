@@ -233,8 +233,8 @@ export default function LoginPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="flex items-center gap-3 mb-8"
           >
-            <div className="h-12 w-12 rounded-xl bg-edutrack-primary flex items-center justify-center shadow-lg shadow-edutrack-primary/30">
-              <GraduationCap className="h-7 w-7 text-white" />
+            <div className="h-12 w-12 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shadow-edutrack-primary/30">
+              <img src="/logo.png" alt="EduTrack" className="h-12 w-12 object-contain" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-edutrack-dark gradient-text">EduTrack</h1>
@@ -535,8 +535,8 @@ export default function LoginPage() {
             transition={{ delay: 0.4, duration: 0.6 }}
             className="text-center mb-12"
           >
-            <div className="h-20 w-20 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center mx-auto mb-6 animate-pulse-glow">
-              <GraduationCap className="h-10 w-10 text-white" />
+            <div className="h-20 w-20 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center mx-auto mb-6 animate-pulse-glow overflow-hidden">
+              <img src="/logo.png" alt="EduTrack" className="h-16 w-16 object-contain" />
             </div>
             <h2 className="text-3xl font-bold mb-3">EduTrack</h2>
             <p className="text-white/70 text-lg">منصة متكاملة لتسيير المؤسسات التعليمية</p>

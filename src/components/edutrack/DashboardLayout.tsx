@@ -160,8 +160,8 @@ function SidebarContent({ onItemClick }: { onItemClick?: () => void }) {
             <img src={institutionLogo} alt="شعار" className="h-9 w-9 object-contain" />
           </div>
         ) : (
-          <div className="h-10 w-10 rounded-xl bg-edutrack-primary flex items-center justify-center shadow-lg shadow-edutrack-primary/30 flex-shrink-0">
-            <GraduationCap className="h-6 w-6 text-white" />
+          <div className="h-10 w-10 rounded-xl overflow-hidden flex items-center justify-center shadow-lg shadow-edutrack-primary/30 flex-shrink-0">
+            <img src="/logo.png" alt="EduTrack" className="h-10 w-10 object-contain" />
           </div>
         )}
         <div className="overflow-hidden">
@@ -513,8 +513,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <img src={instData.logo} alt="شعار" className="h-7 w-7 object-contain" />
                   </div>
                 ) : (
-                  <div className="h-8 w-8 rounded-lg bg-edutrack-primary flex items-center justify-center">
-                    <GraduationCap className="h-5 w-5 text-white" />
+                  <div className="h-8 w-8 rounded-lg overflow-hidden flex items-center justify-center">
+                    <img src="/logo.png" alt="EduTrack" className="h-8 w-8 object-contain" />
                   </div>
                 )}
                 <span className="gradient-text font-bold">{instData.name || 'EduTrack'}</span>

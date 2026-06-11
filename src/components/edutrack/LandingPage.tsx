@@ -275,8 +275,8 @@ function NavBar() {
             className="flex items-center gap-2"
             whileHover={{ scale: 1.02 }}
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-edutrack-primary to-edutrack-secondary sm:h-10 sm:w-10">
-              <GraduationCap className="h-5 w-5 text-white sm:h-6 sm:w-6" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden sm:h-10 sm:w-10">
+              <img src="/logo.png" alt="EduTrack" className="h-9 w-9 object-contain sm:h-10 sm:w-10" />
             </div>
             <span className="gradient-text text-xl font-bold sm:text-2xl">
               EduTrack
@@ -1427,8 +1427,8 @@ function Footer() {
           {/* Brand column */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="mb-4 flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-edutrack-primary to-edutrack-secondary">
-                <GraduationCap className="h-5 w-5 text-white" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl overflow-hidden">
+                <img src="/logo.png" alt="EduTrack" className="h-9 w-9 object-contain" />
               </div>
               <span className="gradient-text text-xl font-bold">EduTrack</span>
             </div>
